@@ -1,4 +1,4 @@
-* { font-family: "Inter", "Noto Sans CJK SC", "Segoe UI", sans-serif; font-size: 13px; color: #e4e8ef; }
+* { font-family: "Inter", "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif; font-size: 13px; color: #e4e8ef; }
 QWidget#appRoot { background: #111419; border: 1px solid #30343d; }
 QFrame#windowBar { background: #111419; border-bottom: 1px solid #242a33; }
 QLabel#windowBrand { color: #adb5c3; font-size: 12px; font-weight: 600; }
