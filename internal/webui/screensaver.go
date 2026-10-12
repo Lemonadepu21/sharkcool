@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -100,7 +101,9 @@ func newScreenManager(c *cooler.Controller) *screenManager {
 	sort.Sort(sort.Reverse(sort.StringSlice(files)))
 	for _, path := range files {
 		info, err := os.Lstat(path)
-		if err != nil || !info.Mode().IsRegular() || info.Size() > 1<<20 || info.Mode().Perm() != 0o600 {
+		// Windows stores this file in the user's AppData directory and uses
+		// inherited ACLs; Go does not expose those as POSIX permission bits.
+		if err != nil || !info.Mode().IsRegular() || info.Size() > 1<<20 || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 			continue
 		}
 		data, err := os.ReadFile(path)

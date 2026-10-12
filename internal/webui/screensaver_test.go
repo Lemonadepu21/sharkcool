@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -42,6 +43,7 @@ func TestScreenPreparationAndDurableBackup(t *testing.T) {
 	}
 	root := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", root)
+	t.Setenv("APPDATA", root)
 	original := cooler.ScreenImage{Info: cooler.ScreenImageInfo{Timestamp: 123, Size: uint32(len(pixels)), CRC16: cooler.ScreenCRC16(pixels)}, Data: pixels}
 	if err := saveScreenBackup(original, "/dev/test"); err != nil {
 		t.Fatal(err)
@@ -51,7 +53,7 @@ func TestScreenPreparationAndDurableBackup(t *testing.T) {
 		t.Fatal("backup missing")
 	}
 	file, _ := os.Stat(files[0])
-	if file.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && file.Mode().Perm() != 0o600 {
 		t.Fatal("backup not private")
 	}
 	data, _ := os.ReadFile(files[0])
