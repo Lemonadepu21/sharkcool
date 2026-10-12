@@ -40,7 +40,10 @@ try {
     $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
     $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
     if (!$vs) { throw 'Visual Studio C++ runtime directory not found' }
-    $runtime = Get-ChildItem "$vs/VC/Redist/MSVC" -Directory | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+    $runtime = Get-ChildItem "$vs/VC/Redist/MSVC" -Directory |
+        Where-Object { $_.Name -match '^\d+\.\d+\.\d+(\.\d+)?$' -and (Test-Path (Join-Path $_.FullName 'x64/Microsoft.VC143.CRT/vcruntime140.dll')) } |
+        Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+    if (!$runtime) { throw 'Redistributable MSVC CRT version directory not found' }
     $crt = Join-Path $runtime.FullName 'x64/Microsoft.VC143.CRT'
     if (!(Test-Path "$crt/vcruntime140.dll")) { throw 'Redistributable MSVC CRT DLLs not found' }
     Copy-Item "$crt/*.dll" $package
