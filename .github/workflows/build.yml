@@ -5,6 +5,9 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -50,13 +53,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/cache/restore@v4
+        id: qt-cache
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: qt-windows-msvc2022-6.8.3-connectivity
       - name: Install Qt development libraries
+        if: steps.qt-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           python -m pip install aqtinstall==3.3.0
           if ($LASTEXITCODE) { throw 'aqt installation failed' }
-          python -m aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -m qtconnectivity qtsvg -O "$env:RUNNER_TEMP/Qt"
+          python -m aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -m qtconnectivity -O "$env:RUNNER_TEMP/Qt"
           if ($LASTEXITCODE) { throw 'Qt installation failed' }
+      - uses: actions/cache/save@v4
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: qt-windows-msvc2022-6.8.3-connectivity
       - name: Build, test and package native Windows application
         shell: pwsh
         run: ./scripts/build-windows.ps1 -QtRoot "$env:RUNNER_TEMP/Qt/6.8.3/msvc2022_64"
