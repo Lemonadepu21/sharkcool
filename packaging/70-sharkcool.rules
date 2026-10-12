@@ -1,0 +1,2 @@
+# Black Shark BRB02 only. Desktop logind grants the active local user access.
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="e2b7", ATTRS{idProduct}=="7001", TAG+="uaccess"

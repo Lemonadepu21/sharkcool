@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "name": "示例程序",
+      "programs": ["sharkcool-scene-target"],
+      "lighting": {"effect": "static", "color": "#204060", "brightness": 35},
+      "cooling": {"source": 0, "slot": 1, "rpm": 1800}
+    }
+  ]
+}

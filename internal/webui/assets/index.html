@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="sharkcool-token" content="__TOKEN__">
+  <title>SharkCool · 黑鲨风神Pro</title><link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+  <header><div><p class="eyebrow">SHARKCOOL / LINUX</p><h1>黑鲨风神Pro</h1></div><span class="badge" id="connection">正在连接</span></header>
+  <div class="notice hidden" id="demo">演示模式 · 所有转速与控制结果均为模拟，不访问散热器。</div>
+  <section class="grid" aria-label="实时监测">
+    <article class="card rpm"><p class="label">风扇转速</p><div class="reading"><strong id="rpm">—</strong><span>RPM</span></div><progress id="rpmbar" max="4000" value="0" aria-label="风扇转速"></progress></article>
+    <article class="card"><p class="label">本机温度</p><div class="temps"><div><p>CPU</p><strong id="cpu">—</strong><span> °C</span></div><div><p>GPU</p><strong id="gpu">—</strong><span> °C</span></div></div></article>
+  </section>
+  <p id="result" class="sub feedback" role="status" aria-live="polite"></p>
+  <div class="workspace">
+  <section class="card control" id="fan-control"><div class="section-title"><div><h2>风扇控制</h2><p class="sub" id="cooling-current">读取中…</p></div></div>
+    <div class="presets" aria-label="设备档位"><button data-slot="1" data-rpm="1200" disabled>1 档</button><button data-slot="2" data-rpm="2134" disabled>2 档</button><button data-slot="3" data-rpm="2912" disabled>3 档</button><button data-slot="4" data-rpm="3534" disabled>4 档</button></div>
+    <div class="lighting-fields"><label>控制方式 <select id="cooling-format"><option value="fixed">固定转速</option><option value="curve">温控曲线</option></select></label><label id="cooling-rpm-field">目标转速 · RPM <input id="cooling-rpm" type="number" min="1200" max="4000" step="1" value="1800"></label></div>
+    <div id="fixed-controls"><input id="speed-slider" type="range" min="1200" max="4000" step="1" value="1800" aria-label="目标转速"><div class="range-labels"><span>1200 RPM</span><span id="speed-max">4000 RPM</span></div></div>
+    <div id="cooling-points" class="lighting-fields hidden">
+      <label>点 1 · 温度 °C <input id="curve-temp-1" type="number" min="0" max="100" value="20"></label><label>点 1 · RPM <input id="curve-rpm-1" type="number" min="1200" max="4000" value="1200"></label>
+      <label>点 2 · 温度 °C <input id="curve-temp-2" type="number" min="0" max="100" value="40"></label><label>点 2 · RPM <input id="curve-rpm-2" type="number" min="1200" max="4000" value="1800"></label>
+      <label>点 3 · 温度 °C <input id="curve-temp-3" type="number" min="0" max="100" value="60"></label><label>点 3 · RPM <input id="curve-rpm-3" type="number" min="1200" max="4000" value="2600"></label>
+      <label>点 4 · 温度 °C <input id="curve-temp-4" type="number" min="0" max="100" value="80"></label><label>点 4 · RPM <input id="curve-rpm-4" type="number" min="1200" max="4000" value="3600"></label>
+    </div><p class="sub hidden" id="curve-note">需要开启温度同步。</p>
+    <details><summary>高级设置</summary><div class="lighting-fields"><label>配置槽 <select id="cooling-slot"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label><label>温度来源 <select id="cooling-source"><option value="cpu">CPU</option><option value="gpu">GPU</option></select></label></div><button id="read-cooling-preset" class="secondary" disabled>载入所选槽</button></details>
+    <div class="actions"><button id="save-cooling" class="primary" disabled>应用转速</button></div><p class="sub" id="cooling-state" role="status" aria-live="polite"></p>
+  </section>
+  <section class="card control" id="rgb-control"><div class="section-title"><h2>RGB 灯效</h2><div class="switch-actions"><button data-switch="rgb" data-on="true" disabled>开灯</button><button data-switch="rgb" data-on="false" disabled>关灯</button></div></div><div class="lighting-fields">
+    <label>灯效 <select id="lighting-effect"><option value="" disabled>正在识别灯效…</option><option value="flow">彩色流动</option><option value="cycle">颜色循环</option><option value="breathing">呼吸</option><option value="static">常亮</option><option value="blinking">闪烁</option><option value="refresh">刷新</option><option value="reactive" disabled>响应</option><option value="audio" disabled>音频同步</option></select></label>
+    <label>颜色模式 <select id="lighting-color-mode"><option value="multi">彩色</option><option value="single">单色</option></select></label>
+    <label id="lighting-color-field" class="hidden">颜色 <input id="lighting-color" type="color" value="#00ff48"></label>
+    <label>亮度 % <input id="lighting-brightness" type="range" min="0" max="100" value="80"><output id="lighting-brightness-value">80%</output></label>
+    <label id="lighting-speed-field">速度 % <input id="lighting-speed" type="range" min="0" max="100" value="50"><output id="lighting-speed-value">50%</output></label>
+  </div><div class="modes"><button id="set-lighting" class="primary" disabled>应用</button></div><p class="sub" id="lighting-state"></p></section>
+  </div>
+  <section class="card control"><div class="section-title"><h2>屏幕</h2><div class="switch-actions"><button data-switch="lcd" data-on="true" disabled>开启</button><button data-switch="lcd" data-on="false" disabled>关闭</button></div></div><div class="lighting-fields">
+    <label>第一行 <select id="lcd-row-1"></select></label>
+    <label>第二行 <select id="lcd-row-2"></select></label>
+    <label>第三行 <select id="lcd-row-3"></select></label>
+  </div><div class="modes"><button id="set-lcd-layout" disabled>应用</button></div><p class="sub" id="lcd-layout-state">当前布局无法读取</p><p class="sub" id="lcd-switch-state"></p></section>
+  <section class="card control" id="screensaver-control"><div class="section-title"><h2>屏保</h2><span class="sub">428 × 142</span></div>
+    <div class="screen-preview" id="screen-preview-empty"><span>选择一张图片</span><img id="screen-preview" class="hidden" alt="屏保预览"></div>
+    <div class="screen-actions"><label class="file-button">选择图片<input id="screen-file" type="file" accept="image/png,image/jpeg"></label><button id="restore-screen" class="secondary" disabled>恢复原图</button><button id="apply-screen" class="primary" disabled>应用屏保</button></div>
+    <div id="screen-transfer" class="hidden"><progress id="screen-progress" max="100" aria-label="屏保上传进度"></progress></div><p id="screen-state" class="sub" role="status" aria-live="polite"></p>
+  </section>
+  <details class="card app-settings"><summary>设置</summary>
+  <section class="control"><div class="section-title"><h2>温度与系统信息同步</h2><label class="toggle"><input id="system-info-enabled" type="checkbox" disabled><span>启用同步</span></label></div><p class="sub" id="system-info-values">正在采集本机指标…</p><p class="sub" id="system-info-status"></p></section>
+  <section class="control"><h2>设备设置</h2><div class="lighting-fields"><label class="toggle"><input id="device-smart" type="checkbox" disabled><span>智能启停</span></label><label class="toggle"><input id="device-power-on" type="checkbox" disabled><span>上电自启动</span></label></div><div class="modes"><button id="set-device-options" disabled>保存</button></div><p class="sub" id="device-options-state"></p></section>
+  <section class="settings"><div><h2>登录后自动运行</h2></div><label class="toggle"><input id="autostart" type="checkbox" disabled><span>启用自启</span></label></section>
+  </details>
+  <p class="notice hidden" id="error" role="status"></p>
+  <footer><span id="device">USB / 蓝牙</span><span>SharkCool</span></footer>
+</main>
+<script src="/app.js" defer></script>
+</body></html>

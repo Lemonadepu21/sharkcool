@@ -1,0 +1,1 @@
+<RCC><qresource prefix="/"><file alias="icon.svg">../packaging/sharkcool.svg</file><file>style.qss</file><file>check.svg</file><file>chevron.svg</file><file>plus.svg</file><file>minus.svg</file><file>switch-on.svg</file><file>switch-off.svg</file></qresource></RCC>

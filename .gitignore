@@ -1,0 +1,8 @@
+/dist/
+/upstream/
+/reference/
+
+/analysis/
+
+__pycache__/
+*.py[cod]

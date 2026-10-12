@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=SharkCool
+Name[zh_CN]=SharkCool · 黑鲨风神Pro
+GenericName=黑鲨风神Pro控制器
+Comment=监控与控制 BRB02 笔记本散热器
+Exec=sharkcool gui
+Icon=sharkcool
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=BRB02;BlackShark;cooler;fan;RGB;黑鲨;风神;散热器;
+StartupWMClass=sharkcool
+StartupNotify=false
