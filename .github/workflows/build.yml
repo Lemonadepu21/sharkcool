@@ -68,3 +68,4 @@ jobs:
             dist/SharkCool-*-windows-x64.zip.sha256
             dist/SharkCool-*-windows-x64-setup.exe
             dist/SharkCool-*-windows-x64-setup.exe.sha256
+            dist/windows-smoke-preview.png

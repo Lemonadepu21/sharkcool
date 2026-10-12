@@ -28,6 +28,14 @@ with (package/'smoke.log').open('wb') as log:
         # Qt window, and leave the backend running when the window closes.
         launcher=subprocess.run([str(package/'SharkCool.exe'),'gui','--demo','--listen',f'127.0.0.1:{port}'],check=True,timeout=10)
         time.sleep(1.5)
+        if os.name == 'nt':
+            inventory = "$p=Get-CimInstance Win32_Process -Filter \"Name='sharkcool-window.exe'\";@($p | Where-Object { $_.CommandLine -match $env:SHARKCOOL_SMOKE_URL }).Count"
+            count = subprocess.check_output(['powershell.exe','-NoProfile','-NonInteractive','-Command',inventory],env={**os.environ,'SHARKCOOL_SMOKE_URL':re.escape(base)},timeout=10,text=True)
+            assert int(count.strip()) == 1, ('Expected one native window', count)
+        artifact = os.environ.get('SHARKCOOL_SMOKE_ARTIFACT')
+        if artifact:
+            import shutil
+            shutil.copyfile(preview, artifact)
         assert service.poll() is None
         assert json.load(http.open(base+'/api/status',timeout=3))['demo']
         print('Packaged Windows backend, HTTP identity, Qt preview and launcher passed')
@@ -38,5 +46,6 @@ with (package/'smoke.log').open('wb') as log:
             script="$p=Get-CimInstance Win32_Process -Filter \"Name='sharkcool-window.exe'\";foreach($x in $p){if($x.CommandLine -match $env:SHARKCOOL_SMOKE_URL){Stop-Process -Id $x.ProcessId -ErrorAction SilentlyContinue}}"
             subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',script],env={**os.environ,'SHARKCOOL_SMOKE_URL':re.escape(base)},check=True,timeout=10)
         service.terminate();service.wait(timeout=10)
+        log.close()  # Windows cannot unlink an open file.
         for name in ['smoke.log','smoke-preview.png']:
             (package/name).unlink(missing_ok=True)

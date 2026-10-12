@@ -62,6 +62,7 @@ try {
         if ($LASTEXITCODE) { throw 'Packaged window runtime check failed' }
         & "$package/sharkcool-bridge.exe" --self-test
         if ($LASTEXITCODE) { throw 'Packaged bridge runtime check failed' }
+        $env:SHARKCOOL_SMOKE_ARTIFACT = "$root/dist/windows-smoke-preview.png"
         & python scripts/windows-smoke.py $package
         if ($LASTEXITCODE) { throw 'Packaged application smoke test failed' }
     } finally { $env:PATH = $savedPath }
