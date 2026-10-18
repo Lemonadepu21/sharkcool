@@ -18,7 +18,7 @@ try:
         time.sleep(.3)
     else:
         raise RuntimeError(result.stderr)
-    print('CPU service install, authenticated local pipe read and missing-driver handling passed')
+    print('Signed driver install, CPU service, trusted local pipe read and response validation passed')
 finally:
     subprocess.run(command + ['-Uninstall'], check=True, timeout=60)
 assert not helper.exists()

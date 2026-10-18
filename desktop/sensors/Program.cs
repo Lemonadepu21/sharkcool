@@ -16,7 +16,7 @@ internal static class Program
 
     internal static int? SelectCPU(IEnumerable<(string Name, float? Value)> sensors)
     {
-        var valid = sensors.Where(s => s.Value is float v && float.IsFinite(v) && v > 0 && v <= 150).ToArray();
+        var valid = sensors.Where(s => !s.Name.Contains("Distance to TjMax", StringComparison.OrdinalIgnoreCase) && s.Value is float v && float.IsFinite(v) && v > 0 && v <= 150).ToArray();
         var package = valid.Where(s => s.Name == "CPU Package" || s.Name.Contains("Tctl/Tdie", StringComparison.OrdinalIgnoreCase)).ToArray();
         var selected = package.Length > 0 ? package : valid;
         return selected.Length == 0 ? null : (int)Math.Round(selected.Max(s => s.Value!.Value), MidpointRounding.AwayFromZero);
@@ -29,7 +29,8 @@ internal static class Program
             if (args.SequenceEqual(new[] { "--self-test" }))
             {
                 if (SelectCPU(new[] { ("CPU Package", (float?)55.5f), ("CPU Core #1", (float?)80) }) != 56 ||
-                    SelectCPU(new[] { ("CPU Core #1", (float?)45), ("CPU Core #2", (float?)50) }) != 50 ||
+                    SelectCPU(new[] { ("CPU Core #1", (float?)45), ("CPU Core #2", (float?)50), ("CPU Core #1 Distance to TjMax", (float?)90) }) != 50 ||
+                    SelectCPU(new[] { ("CPU Core #1 Distance to TjMax", (float?)90) }) != null ||
                     SelectCPU(new[] { ("Core", (float?)float.NaN), ("Core", (float?)151), ("Core", (float?)null) }) != null)
                     throw new InvalidOperationException("CPU sensor selection failed");
                 Console.WriteLine("CPU sensor selection passed");
