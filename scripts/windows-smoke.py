@@ -38,14 +38,19 @@ with (package/'smoke.log').open('wb') as log:
             shutil.copyfile(preview, artifact)
         assert service.poll() is None
         assert json.load(http.open(base+'/api/status',timeout=3))['demo']
-        print('Packaged Windows backend, HTTP identity, Qt preview and launcher passed')
+        token=re.search(r'name="sharkcool-token" content="([a-f0-9]+)"',page).group(1)
+        request=urllib.request.Request(base+'/api/quit',data=b'{}',headers={'Content-Type':'application/json','X-SharkCool-Token':token})
+        assert json.load(http.open(request,timeout=3))['quitting']
+        assert service.wait(timeout=6)==0
+        print('Packaged Windows backend, HTTP identity, Qt preview, launcher and graceful shutdown passed')
     finally:
         # Close only the window attached to our random-port fixture, not any
         # real installation. Its normalized URL is visible in the command line.
         if os.name=='nt':
             script="$p=Get-CimInstance Win32_Process -Filter \"Name='sharkcool-window.exe'\";foreach($x in $p){if($x.CommandLine -match $env:SHARKCOOL_SMOKE_URL){Stop-Process -Id $x.ProcessId -ErrorAction SilentlyContinue}}"
             subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',script],env={**os.environ,'SHARKCOOL_SMOKE_URL':re.escape(base)},check=True,timeout=10)
-        service.terminate();service.wait(timeout=10)
+        if service.poll() is None:service.terminate()
+        service.wait(timeout=10)
         log.close()  # Windows cannot unlink an open file.
         for name in ['smoke.log','smoke-preview.png']:
             (package/name).unlink(missing_ok=True)

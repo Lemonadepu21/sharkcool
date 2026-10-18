@@ -1,5 +1,7 @@
 param([switch]$Uninstall, [string]$Source = (Join-Path $PSScriptRoot 'sensors'))
 $ErrorActionPreference = 'Stop'
+# Prefer this PowerShell host's built-in modules when launched from pwsh.
+$env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 $name = 'SharkCoolSensors'
 $target = Join-Path $env:ProgramFiles $name
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -25,23 +27,22 @@ if ($Uninstall) {
 }
 $Source = (Resolve-Path $Source).Path
 if (!(Test-Path (Join-Path $Source 'sharkcool-sensors.exe'))) { throw 'CPU temperature component is missing' }
-& {
-    $driver = Join-Path $Source 'PawnIO_setup.exe'
-    if (!(Test-Path $driver)) { throw 'PawnIO installer is missing' }
-    if ((Get-AuthenticodeSignature $driver).Status -ne 'Valid') { throw 'PawnIO installer signature is invalid' }
-    $driverReady = $false
-    foreach ($key in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO')) {
-        $entry = Get-ItemProperty $key -ErrorAction SilentlyContinue
-        if ($entry) {
-            if ([version]$entry.DisplayVersion -lt [version]'2.0') { throw 'Please update the existing PawnIO installation to version 2.0 or newer.' }
-            $driverReady = $true
-            break
-        }
+$driver = Join-Path $Source 'PawnIO_setup.exe'
+if (!(Test-Path $driver)) { throw 'PawnIO installer is missing' }
+if ((Get-FileHash $driver -Algorithm SHA256).Hash.ToLower() -ne 'a3a46226c5e2824f4cdd42be0eecbabfc672c86f7889710f5ab1e6ad385b47a0') { throw 'PawnIO installer checksum is invalid' }
+if ((Get-AuthenticodeSignature $driver).Status -ne 'Valid') { throw 'PawnIO installer signature is invalid' }
+$driverReady = $false
+foreach ($key in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO')) {
+    $entry = Get-ItemProperty $key -ErrorAction SilentlyContinue
+    if ($entry) {
+        if ([version]$entry.DisplayVersion -lt [version]'2.0') { throw 'Please update the existing PawnIO installation to version 2.0 or newer.' }
+        $driverReady = $true
+        break
     }
-    if (!$driverReady) {
-        $install = Start-Process $driver -ArgumentList '-install','-silent' -Wait -PassThru
-        if ($install.ExitCode -ne 0) { throw "PawnIO installation failed: $($install.ExitCode)" }
-    }
+}
+if (!$driverReady) {
+    $install = Start-Process $driver -ArgumentList '-install','-silent' -Wait -PassThru
+    if ($install.ExitCode -ne 0) { throw "PawnIO installation failed: $($install.ExitCode)" }
 }
 # The privileged executable always lives under protected Program Files.
 if ($Source -ne $target) {
