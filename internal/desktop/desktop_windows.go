@@ -54,7 +54,7 @@ func SetAutostart(on bool) error {
 	if err = os.MkdirAll(filepath.Dir(p), 0700); err != nil {
 		return err
 	}
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", `$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:SHARKCOOL_SHORTCUT);$s.TargetPath=$env:SHARKCOOL_EXECUTABLE;$s.Arguments='gui --no-browser';$s.WorkingDirectory=[IO.Path]::GetDirectoryName($env:SHARKCOOL_EXECUTABLE);$s.IconLocation=$env:SHARKCOOL_EXECUTABLE+',0';$s.Save()`)
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", `$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:SHARKCOOL_SHORTCUT);$s.TargetPath=$env:SHARKCOOL_EXECUTABLE;$s.Arguments='gui --tray';$s.WorkingDirectory=[IO.Path]::GetDirectoryName($env:SHARKCOOL_EXECUTABLE);$s.IconLocation=[IO.Path]::Combine([IO.Path]::GetDirectoryName($env:SHARKCOOL_EXECUTABLE),'SharkCool.exe')+',0';$s.Save()`)
 	cmd.Env = append(os.Environ(), "SHARKCOOL_SHORTCUT="+p, "SHARKCOOL_EXECUTABLE="+exe)
 	prepareUICommand(cmd)
 	if out, err := cmd.CombinedOutput(); err != nil {

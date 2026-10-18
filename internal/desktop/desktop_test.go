@@ -68,7 +68,7 @@ func TestAutostartAndExclusiveLock(t *testing.T) {
 		t.Fatal("autostart not created")
 	}
 	b, err := os.ReadFile(filepath.Join(root, "config/autostart/sharkcool.desktop"))
-	if err != nil || !strings.Contains(string(b), "gui --no-browser") {
+	if err != nil || !strings.Contains(string(b), "gui --tray") {
 		t.Fatalf("%s %v", b, err)
 	}
 	if err := SetAutostart(false); err != nil {

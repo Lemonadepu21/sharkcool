@@ -64,6 +64,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	listen := flags.String("listen", "127.0.0.1:17865", "本机控制界面地址")
 	noBrowser := flags.Bool("no-browser", false, "仅运行后台服务，不打开应用窗口")
 	useBrowser := flags.Bool("browser", false, "使用网页控制（默认打开 Qt 原生应用）")
+	tray := flags.Bool("tray", false, "启动后驻留托盘，不显示主窗口")
 	timeout := flags.Duration("timeout", 12*time.Second, "命令行等待心跳或 ACK 的最长时间")
 	effect := flags.String("effect", "", "RGB 灯效：flow、cycle、breathing、static、blinking、refresh")
 	color := flags.String("color", "", "RGB 颜色，如 #00ff48")
@@ -334,7 +335,10 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if flags.NArg() != 0 {
 			return fmt.Errorf("gui 不接受位置参数")
 		}
-		return gui(ctx, out, options, *demo, *listen, *noBrowser, *useBrowser)
+		if *tray && (*noBrowser || *useBrowser) {
+			return fmt.Errorf("--tray 不能与 --no-browser 或 --browser 同时使用")
+		}
+		return gui(ctx, out, options, *demo, *listen, *noBrowser, *useBrowser, *tray)
 	case "speed":
 		if flags.NArg() != 1 {
 			return fmt.Errorf("用法: sharkcool speed [--transport ble] 1200～3600")
@@ -412,6 +416,7 @@ func usage(out io.Writer) {
 
 sharkcool                          打开本机中文控制界面
 sharkcool gui --no-browser         后台运行，不打开应用窗口
+sharkcool gui --tray               后台驻留托盘
 sharkcool gui --demo               无硬件演示（不访问设备）
 sharkcool doctor                   检查设备及读写权限
 sharkcool status                   等待一个心跳并输出 JSON
@@ -532,10 +537,22 @@ func cli(ctx context.Context, out io.Writer, command string, options cooler.Opti
 	}
 }
 
-func gui(ctx context.Context, out io.Writer, options cooler.Options, demo bool, address string, noBrowser, useBrowser bool) error {
-	openUI := desktop.OpenWindow
+func gui(ctx context.Context, out io.Writer, options cooler.Options, demo bool, address string, noBrowser, useBrowser, tray bool) error {
+	ctx, cancelApp := context.WithCancel(ctx)
+	defer cancelApp()
+	openUI := func(url string) error {
+		if tray {
+			return desktop.OpenWindow(url, "--tray")
+		}
+		return desktop.OpenWindow(url)
+	}
 	if useBrowser {
 		openUI = desktop.OpenBrowser
+	}
+	if !demo && desktop.AutostartEnabled() {
+		if err := desktop.SetAutostart(true); err != nil {
+			fmt.Fprintln(out, "更新托盘自启动失败：", err)
+		}
 	}
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
@@ -582,7 +599,7 @@ func gui(ctx context.Context, out io.Writer, options cooler.Options, demo bool, 
 	pushDone := make(chan struct{})
 	go func() { defer close(pushDone); publisher.Run(pushCtx) }()
 	defer func() { stopPush(); <-pushDone }()
-	handler, err := webui.NewHandlerWithSystemInfo(c, listener.Addr().String(), publisher, temps.Snapshot)
+	handler, err := webui.NewHandlerWithSystemInfo(c, listener.Addr().String(), publisher, temps.Snapshot, cancelApp)
 	if err != nil {
 		return err
 	}

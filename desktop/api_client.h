@@ -5,7 +5,7 @@
 #include <functional>
 #include <vector>
 
-struct ApiResult { QJsonObject data; QString error; bool ok() const { return error.isEmpty(); } };
+struct ApiResult { QJsonObject data; QString error; int status=0; bool ok() const { return error.isEmpty(); } };
 class ApiClient : public QObject {
 public:
     using Callback = std::function<void(ApiResult)>;

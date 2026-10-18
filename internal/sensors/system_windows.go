@@ -4,8 +4,10 @@ package sensors
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sharkcool-linux/brb02"
 	"strconv"
 	"strings"
@@ -43,10 +45,38 @@ func nvidiaValue(ctx context.Context, query string) (uint16, bool) {
 }
 func ReadTemps(ctx context.Context) map[string]int64 {
 	result := map[string]int64{}
+	if cpu, ok := readCPU(ctx); ok {
+		result["cpu"] = cpu
+	}
 	if v, ok := nvidiaValue(ctx, "temperature.gpu"); ok && v > 0 {
 		result["gpu"] = int64(v)
 	}
 	return result
+}
+
+func readCPU(ctx context.Context) (int64, bool) {
+	dir := os.Getenv("ProgramFiles")
+	if dir == "" {
+		return 0, false
+	}
+	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	data, err := hiddenCommand(ctx, filepath.Join(dir, "SharkCoolSensors", "sharkcool-sensors.exe"), "--read").Output()
+	if err != nil {
+		return 0, false
+	}
+	return parseCPU(data)
+}
+
+func parseCPU(data []byte) (int64, bool) {
+	var sample struct {
+		CPU   *int64 `json:"cpu"`
+		Error string `json:"error"`
+	}
+	if len(data) > 1024 || json.Unmarshal(data, &sample) != nil || sample.CPU == nil || sample.Error != "" || *sample.CPU <= 0 || *sample.CPU > 150 {
+		return 0, false
+	}
+	return *sample.CPU, true
 }
 func NewSystemInfoReader(temperatures func() map[string]int64) func(context.Context) brb02.SystemInfo {
 	var prevTotal, prevIdle uint64

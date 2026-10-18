@@ -62,7 +62,7 @@ func SetAutostart(on bool) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	contents := "[Desktop Entry]\nType=Application\nName=SharkCool\nComment=黑鲨风神Pro Linux 控制器\nExec=" + execQuote(exe) + " gui --no-browser\nTerminal=false\nCategories=Utility;\n"
+	contents := "[Desktop Entry]\nType=Application\nName=SharkCool\nIcon=sharkcool\nComment=黑鲨风神Pro 控制器\nExec=" + execQuote(exe) + " gui --tray\nTerminal=false\nCategories=Utility;\n"
 	f, err := os.CreateTemp(dir, ".sharkcool-*")
 	if err != nil {
 		return err

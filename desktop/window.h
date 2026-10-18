@@ -9,15 +9,21 @@
 
 class QLabel; class QPushButton; class QComboBox; class QSpinBox; class QSlider; class QCheckBox; class QProgressBar; class QStackedWidget;
 class Gauge; class MetricCard; class CurveChart;
+class QSystemTrayIcon; class QAction; class QCloseEvent;
 class MainWindow : public QWidget {
 public:
     explicit MainWindow(const QUrl &base, QWidget *parent = nullptr);
     void activate();
     void previewPage(int index);
+    void enableTray(bool startHidden=false);
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
 private:
     ApiClient api;
+    QSystemTrayIcon *tray=nullptr;
+    QAction *trayAutostart=nullptr, *trayExit=nullptr;
+    bool settingsLoaded=false;
     QTimer pollTimer;
     QString connectionKey, draftID;
     bool connected=false, demo=false, busy=false, screenBusy=false, rendering=false, polling=false, syncing=false, screenPolling=false, auxiliaryPolling=false;

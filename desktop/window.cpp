@@ -111,7 +111,7 @@ MainWindow::MainWindow(const QUrl &base,QWidget *parent):QWidget(parent),api(bas
     pages=new QStackedWidget;pages->setObjectName("pages");
     auto group=new QButtonGroup(this);group->setExclusive(true);int index=0;
     for(const auto &text:QStringList{"概览","灯效","屏幕","设置"}){auto b=button(text,"navButton");b->setCheckable(true);b->setMinimumHeight(44);group->addButton(b,index);nav->addWidget(b);if(index==0)b->setChecked(true);connect(b,&QPushButton::clicked,this,[this,index]{pages->setCurrentIndex(index);pageHeading->setText(QStringList{"设备概览","灯光效果","屏幕设置","应用设置"}.value(index));});index++;}
-    nav->addStretch();transport=label("等待连接","muted");nav->addWidget(transport);nav->addWidget(label("SharkCool 1.12.1","version"));body->addWidget(sidebar);
+    nav->addStretch();transport=label("等待连接","muted");nav->addWidget(transport);nav->addWidget(label("SharkCool 1.13.0","version"));body->addWidget(sidebar);
     auto main=new QVBoxLayout;main->setContentsMargins(30,22,30,22);main->setSpacing(18);body->addLayout(main,1);
     auto top=new QHBoxLayout;auto headings=new QVBoxLayout;headings->setSpacing(4);pageHeading=label("设备概览","pageTitle");headings->addWidget(pageHeading);headings->addWidget(label("BLACK SHARK · 风神 Pro","eyebrow"));top->addLayout(headings);top->addStretch();badge=label("正在连接","connectionBadge");top->addWidget(badge,0,Qt::AlignVCenter);main->addLayout(top);
     pages->addWidget(scrollPage(dashboard()));pages->addWidget(scrollPage(lighting()));pages->addWidget(scrollPage(screen()));pages->addWidget(scrollPage(settings()));main->addWidget(pages,1);
@@ -120,6 +120,21 @@ MainWindow::MainWindow(const QUrl &base,QWidget *parent):QWidget(parent),api(bas
 }
 void MainWindow::previewPage(int index){pages->setCurrentIndex(qBound(0,index,3));pageHeading->setText(QStringList{"设备概览","灯光效果","屏幕设置","应用设置"}.value(index));int i=0;for(auto b:findChildren<QPushButton*>("navButton")){b->setChecked(i++==index);}}
 void MainWindow::activate(){showNormal();raise();activateWindow();}
+void MainWindow::enableTray(bool startHidden){
+    if(tray)return;
+    tray=new QSystemTrayIcon(windowIcon(),this);tray->setObjectName("systemTray");tray->setToolTip("SharkCool");
+    auto menu=new QMenu(this);auto open=menu->addAction("打开 SharkCool");open->setObjectName("trayOpen");connect(open,&QAction::triggered,this,&MainWindow::activate);
+    trayAutostart=menu->addAction("登录后自动运行");trayAutostart->setObjectName("trayAutostart");trayAutostart->setCheckable(true);trayAutostart->setEnabled(false);
+    connect(trayAutostart,&QAction::triggered,this,[this]{autostart->click();});
+    menu->addSeparator();trayExit=menu->addAction("退出 SharkCool");trayExit->setObjectName("trayExit");
+    connect(trayExit,&QAction::triggered,this,[this]{trayExit->setEnabled(false);api.post("/api/quit",{},[this](ApiResult r){if(r.ok()||r.status==0)qApp->quit();else{trayExit->setEnabled(true);activate();message(r.error,true);}});});
+    tray->setContextMenu(menu);connect(tray,&QSystemTrayIcon::activated,this,[this](QSystemTrayIcon::ActivationReason reason){if(reason==QSystemTrayIcon::Trigger||reason==QSystemTrayIcon::DoubleClick)activate();});tray->show();
+    if(startHidden&&QSystemTrayIcon::isSystemTrayAvailable())hide();else show();
+}
+void MainWindow::closeEvent(QCloseEvent *event){
+    if(tray&&tray->isVisible()&&QSystemTrayIcon::isSystemTrayAvailable()){hide();event->ignore();return;}
+    QWidget::closeEvent(event);
+}
 QWidget *MainWindow::dashboard(){
     auto page=new QWidget;auto layout=new QVBoxLayout(page);layout->setContentsMargins(0,0,0,0);layout->setSpacing(18);
     auto metrics=new QHBoxLayout;metrics->setSpacing(14);QVBoxLayout *rpmLayout;auto rpmCard=card(&rpmLayout);rpmCard->setMinimumWidth(290);rpmLayout->setContentsMargins(20,16,20,8);rpmLayout->setSpacing(0);rpmLayout->addWidget(label("实时转速","fieldLabel"));gauge=new Gauge;rpmLayout->addWidget(gauge);metrics->addWidget(rpmCard,2);cpuCard=new MetricCard("CPU",QColor("#b2e6d0"));gpuCard=new MetricCard("GPU",QColor("#a8b8ee"));metrics->addWidget(cpuCard,1);metrics->addWidget(gpuCard,1);layout->addLayout(metrics);
@@ -160,7 +175,7 @@ QWidget *MainWindow::settings(){
     auto page=new QWidget;auto layout=new QVBoxLayout(page);layout->setContentsMargins(0,0,0,0);layout->setSpacing(18);
     QVBoxLayout *device;auto panel=card(&device);title(device,"设备选项");smart=new QCheckBox("智能启停");smart->setObjectName("smartStartStop");powerOn=new QCheckBox("上电自启动");powerOn->setObjectName("powerOnStart");device->addWidget(smart);device->addWidget(powerOn);for(auto toggle:{smart,powerOn})connect(toggle,&QCheckBox::toggled,this,[this]{if(!rendering)deviceDirty=true;});auto actions=new QHBoxLayout;actions->addStretch();saveDevice=button("保存设置","primary");actions->addWidget(saveDevice);device->addLayout(actions);connect(saveDevice,&QPushButton::clicked,this,[this]{mutation("/api/device-options",{{"smartStartStop",smart->isChecked()},{"powerOnStart",powerOn->isChecked()}},[this](QJsonObject data){deviceDirty=false;applyReadback("device",data);});});layout->addWidget(panel);
     QVBoxLayout *application;auto prefs=card(&application);title(application,"应用设置");syncInfo=new QCheckBox("同步本机温度与系统信息");syncInfo->setObjectName("syncSystemInfo");autostart=new QCheckBox("登录后自动运行");autostart->setObjectName("loginAutostart");application->addWidget(syncInfo);application->addWidget(autostart);connect(syncInfo,&QCheckBox::toggled,this,[this](bool on){if(!rendering)mutation("/api/system-info",{{"enabled",on}});});connect(autostart,&QCheckBox::toggled,this,[this](bool on){if(!rendering)mutation("/api/autostart",{{"enabled",on}});});layout->addWidget(prefs);
-    QVBoxLayout *info;auto about=card(&info);title(info,"SharkCool",label("1.12.1","subtle"));connectionDetail=label("正在读取设备连接…","subtle");connectionDetail->setWordWrap(true);info->addWidget(connectionDetail);layout->addWidget(about);layout->addStretch();return page;
+    QVBoxLayout *info;auto about=card(&info);title(info,"SharkCool",label("1.13.0","subtle"));connectionDetail=label("正在读取设备连接…","subtle");connectionDetail->setWordWrap(true);info->addWidget(connectionDetail);layout->addWidget(about);layout->addStretch();return page;
 }
 
 void MainWindow::message(const QString &text,bool error){feedback->setText(text);feedback->setProperty("error",error);feedback->style()->unpolish(feedback);feedback->style()->polish(feedback);feedback->setVisible(!text.isEmpty());}
@@ -181,7 +196,7 @@ void MainWindow::poll(){
         if(demo){current->setText("演示模式");renderPresets();}rpm->setMaximum(demo?3600:4000);rpmSlider->setMaximum(demo?3600:4000);updateEnabled();syncDevice();
     });
     if(!screenPolling){screenPolling=true;api.get("/api/screensaver",[this](ApiResult r){screenPolling=false;if(!r.ok()){screenState->setText("屏保状态未读取");return;}auto s=r.data;screenBusy=s.value("running").toBool();canRestore=s.value("canRestore").toBool();if(!draftID.isEmpty()&&draftID!=s.value("draftId").toString()){draftID.clear();preview->setPixmap({});preview->setText("选择一张图片");}progress->setVisible(screenBusy);const int n=s.value("progress").toInt();progress->setRange(0,n<0?0:100);if(n>=0)progress->setValue(n);screenState->setText(s.value("error").toString().isEmpty()?s.value("phase").toString():s.value("error").toString());updateEnabled();});}
-    if((statusSequence++%5==0)&&!auxiliaryPolling){auxiliaryPolling=true;api.get("/api/settings",[this](ApiResult r){if(r.ok()&&!busy){QSignalBlocker b(autostart);autostart->setChecked(r.data.value("autostart").toBool());}api.get("/api/system-info",[this](ApiResult s){auxiliaryPolling=false;if(s.ok()&&!busy){QSignalBlocker b(syncInfo);syncInfo->setChecked(s.data.value("enabled").toBool());}});});}
+    if((statusSequence++%5==0)&&!auxiliaryPolling){auxiliaryPolling=true;api.get("/api/settings",[this](ApiResult r){settingsLoaded=r.ok();if(r.ok()&&!busy){QSignalBlocker b(autostart);autostart->setChecked(r.data.value("autostart").toBool());}updateEnabled();api.get("/api/system-info",[this](ApiResult s){auxiliaryPolling=false;if(s.ok()&&!busy){QSignalBlocker b(syncInfo);syncInfo->setChecked(s.data.value("enabled").toBool());}});});}
 }
 void MainWindow::syncDevice(){if(syncing||busy||screenBusy||!connected||demo||connectionKey.isEmpty()||QDateTime::currentMSecsSinceEpoch()<nextSync)return;syncing=true;nextSync=QDateTime::currentMSecsSinceEpoch()+5000;syncKind(0,connectionKey,revision);}
 void MainWindow::syncKind(int index,QString key,int epoch){
@@ -235,7 +250,8 @@ void MainWindow::updateEnabled(){
     overviewLCD->setEnabled(hardware&&lcdLoaded);overviewRGB->setEnabled(hardware&&rgbSwitchLoaded);rgbOn->setEnabled(hardware&&rgbSwitchLoaded);rgbOff->setEnabled(hardware&&rgbSwitchLoaded);
     lcdOn->setEnabled(hardware&&lcdLoaded);lcdOff->setEnabled(hardware&&lcdLoaded);bool layoutReady=true;for(auto row:rows)layoutReady&=row->currentIndex()>0;applyLayout->setEnabled(hardware&&layoutReady);
     chooseImage->setEnabled(ready);applyImage->setEnabled(hardware&&!draftID.isEmpty());restoreImage->setEnabled(hardware&&canRestore);
-    smart->setEnabled(hardware&&deviceLoaded);powerOn->setEnabled(hardware&&deviceLoaded);saveDevice->setEnabled(hardware&&deviceLoaded);syncInfo->setEnabled(ready&&!demo);autostart->setEnabled(ready&&!demo);
+    smart->setEnabled(hardware&&deviceLoaded);powerOn->setEnabled(hardware&&deviceLoaded);saveDevice->setEnabled(hardware&&deviceLoaded);syncInfo->setEnabled(ready&&!demo);autostart->setEnabled(ready&&!demo&&settingsLoaded);
+    if(trayAutostart){trayAutostart->setEnabled(autostart->isEnabled());trayAutostart->setChecked(autostart->isChecked());}
 }
 void MainWindow::renderOutputs(){
     QSignalBlocker b1(overviewLCD),b2(overviewRGB);overviewLCD->setChecked(lcdLoaded&&lcdEnabled);overviewRGB->setChecked(rgbSwitchLoaded&&rgbEnabled);overviewLCD->setText(lcdLoaded?(lcdEnabled?"已开启":"已关闭"):"未读取");overviewRGB->setText(rgbSwitchLoaded?(rgbEnabled?"已开启":"已关闭"):"未读取");lcdOn->setChecked(lcdLoaded&&lcdEnabled);lcdOff->setChecked(lcdLoaded&&!lcdEnabled);rgbOn->setChecked(rgbSwitchLoaded&&rgbEnabled);rgbOff->setChecked(rgbSwitchLoaded&&!rgbEnabled);

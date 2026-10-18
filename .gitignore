@@ -6,3 +6,5 @@
 
 __pycache__/
 *.py[cod]
+desktop/sensors/bin/
+desktop/sensors/obj/

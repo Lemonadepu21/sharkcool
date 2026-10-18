@@ -1,5 +1,5 @@
 #ifndef AppVersion
-#define AppVersion "1.12.1"
+#define AppVersion "1.13.0"
 #endif
 #ifndef SourceDir
 #error SourceDir must point to the complete portable application directory
@@ -12,9 +12,10 @@ AppId={{ECED5B67-A396-4B5E-89AB-4CBB620A5206}
 AppName=SharkCool
 AppVersion={#AppVersion}
 AppPublisher=SharkCool contributors
-DefaultDirName={localappdata}\Programs\SharkCool
+DefaultDirName={autopf}\SharkCool
+UsePreviousAppDir=no
 DefaultGroupName=SharkCool
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 MinVersion=10.0.17763
@@ -31,8 +32,10 @@ RestartApplications=no
 LicenseFile={#SourceDir}\LICENSE
 [Tasks]
 Name: desktopicon; Description: "Create a desktop shortcut"; Flags: checkedonce
+Name: cputemp; Description: "Enable CPU temperature monitoring"; Flags: checkedonce
 [Files]
-Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "sensors\*,Enable-CPU-Temperature.cmd"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceDir}\sensors\*"; DestDir: "{commonpf}\SharkCoolSensors"; Flags: ignoreversion recursesubdirs createallsubdirs; Tasks: cputemp
 [Icons]
 Name: "{autoprograms}\SharkCool"; Filename: "{app}\SharkCool.exe"; WorkingDir: "{app}"
 Name: "{autodesktop}\SharkCool"; Filename: "{app}\SharkCool.exe"; WorkingDir: "{app}"; Tasks: desktopicon
@@ -40,5 +43,17 @@ Name: "{autodesktop}\SharkCool"; Filename: "{app}\SharkCool.exe"; WorkingDir: "{
 Filename: "{app}\SharkCool.exe"; Description: "Launch SharkCool"; Flags: nowait postinstall skipifsilent
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\Stop-SharkCool.ps1"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{commonpf}\SharkCoolSensors\Install-Sensors.ps1"" -Uninstall"; Flags: runhidden waituntilterminated skipifdoesntexist
 [UninstallDelete]
 Type: files; Name: "{userstartup}\SharkCool.lnk"
+
+[Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+var ResultCode: Integer;
+begin
+  if (CurStep = ssPostInstall) and WizardIsTaskSelected('cputemp') then
+    if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+      ExpandConstant('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{commonpf}\SharkCoolSensors\Install-Sensors.ps1" -Source "{commonpf}\SharkCoolSensors"'),
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+      RaiseException('CPU temperature service installation failed. Please rerun Setup.');
+end;

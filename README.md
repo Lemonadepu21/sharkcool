@@ -1,12 +1,16 @@
 # SharkCool / BRB02 独立驱动 · Linux & Windows
 
-## 1.12.1
+## 1.13.0
+
+Linux / Windows 原生窗口新增系统托盘：关闭窗口后驻留，托盘可打开窗口、切换登录自启动、退出窗口与后台控制服务。设置页与托盘共用同一自启动配置；登录启动时直接驻留托盘。桌面未提供托盘时会显示窗口，避免应用无法访问。传输屏保时拒绝退出，保留写入保护。
+
+Windows 新增 CPU 温度采集：安装包默认安装只读 `SharkCoolSensors` 服务及官方签名 PawnIO 驱动，需要一次管理员授权，日常 GUI 与登录自启仍使用普通权限。采集组件自带 .NET 运行库，不依赖另开监控软件；读到的真实温度用于界面与系统信息推送，无法读取时显示「—」。本机进程只能读取温度，不能向采集服务提交硬件操作。
 
 原生概览页新增屏幕、灯效开关，分别读取设备 C1 / 11 状态；点击直接生效，读回确认后更新，并与屏幕/灯效页面保持一致。断线、未知状态和屏保传输期间禁用控制，失败保留已读状态，不重放操作。应用图标改为用户选择的鲨鲨酱「夏日笑脸」，详见 [素材说明](packaging/ASSET-NOTICE.md)。
 
-Windows x64 提供 USB HID 和 BLE 通信后端、独立 Qt 窗口、无控制台启动器和可选桌面快捷方式。Windows 构建会生成包含运行库与快捷方式的安装 EXE，以及完整解压后可双击 `SharkCool.exe` 的便携 ZIP；构建产物位于 GitHub Actions，暂未发布 Release。Windows 版尚待散热器真机验证；CPU 温度、非 NVIDIA 显卡温度、主机音频/输入采集暂未支持。具体步骤、限制和构建说明见 [Windows 使用说明](packaging/windows/README-Windows.md)。
+Windows x64 提供 USB HID 和 BLE 通信后端、独立 Qt 窗口、无控制台启动器和可选桌面快捷方式。Windows 构建会生成包含运行库与快捷方式的安装 EXE，以及完整解压后可双击 `SharkCool.exe` 的便携 ZIP；构建产物位于 GitHub Actions，暂未发布 Release。Windows 版尚待散热器与温度传感器真机验证；非 NVIDIA 显卡温度、主机音频/输入采集暂未支持。具体步骤、限制和构建说明见 [Windows 使用说明](packaging/windows/README-Windows.md)。
 
-GitHub Actions 在 Ubuntu / Windows 上编译与测试，Windows 自动携带 Qt 运行库生成便携 ZIP。手动构建：`./scripts/build-windows.ps1 -QtRoot C:/Qt/6.8.3/msvc2022_64`，需要 VS 2022 C++ 工具、Go、CMake、Python、Node 和 Qt Widgets/Network/Svg/Bluetooth/Test。运行测试不等同于硬件验证。
+GitHub Actions 在 Ubuntu / Windows 上编译与测试，Windows 自动携带 Qt 和 .NET 运行库生成便携 ZIP。手动构建：`./scripts/build-windows.ps1 -QtRoot C:/Qt/6.8.3/msvc2022_64`，需要 VS 2022 C++ 工具、Go、CMake、Python、Node、.NET 10 SDK 和 Qt Widgets/Network/Svg/Bluetooth/Test。运行测试不等同于硬件验证。
 
 从用户提供的黑鲨装备箱安装包中分析 BRB02 通信模块，并实现独立用户态驱动。独立 Go 包位于 `brb02/`，Linux 通信不依赖 Windows EXE、DLL、Qt 或 Wine；Windows 通信通过项目自己的 HID/BLE 组件，桌面使用 Qt 控件。中文本地界面和命令行调用同一个驱动。
 
@@ -34,7 +38,7 @@ GitHub Actions 在 Ubuntu / Windows 上编译与测试，Windows 自动携带 Qt
 ./dist/sharkcool                         # 自动选择可用通道
 ```
 
-默认打开 Qt 原生控件应用，无浏览器或 WebView 依赖。`gui --browser` 显式打开可选网页入口，`gui --no-browser` 只运行后台。默认驱动地址 `http://127.0.0.1:17865`。Ctrl+C 停止服务；关闭原生窗口不停止后台程序，再次点击桌面快捷方式可打开窗口。同一用户只允许一个实际设备控制进程；同一驱动地址只有一个原生窗口实例。控制服务仅监听回环 IP，并校验修改请求的会话令牌和来源。
+默认打开 Qt 原生控件应用，无浏览器或 WebView 依赖。`gui --browser` 显式打开可选网页入口，`gui --no-browser` 只运行后台，`gui --tray` 直接驻留托盘。默认驱动地址 `http://127.0.0.1:17865`。Ctrl+C 或托盘「退出 SharkCool」停止控制服务；关闭原生窗口后可从托盘或桌面快捷方式重新打开。同一用户只允许一个实际设备控制进程；同一驱动地址只有一个原生窗口实例。控制服务仅监听回环 IP，并校验修改请求的会话令牌和来源。
 
 无硬件演示：`./dist/sharkcool gui --demo`。演示不会读取或写入设备，不支持生成查询/开关的伪造响应，不修改自启配置。
 

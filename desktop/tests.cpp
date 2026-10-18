@@ -9,11 +9,13 @@
 #include <QCheckBox>
 #include <QLabel>
 #include <QFile>
+#include <QSystemTrayIcon>
+#include <QAction>
 
 class Fixture : public QTcpServer {
 public:
     QString token="aabbcc";
-    bool connected=true,lcd=true,rgbEnabled=true,failSwitch=false,missingRGBState=false,running=false,failDevice=false;
+    bool connected=true,lcd=true,rgbEnabled=true,failSwitch=false,missingRGBState=false,running=false,failDevice=false,autostart=false;
     int generation=1,rootReads=0;
     QJsonObject cooling{{"source",1},{"slot",1},{"rpm",1500}};
     QJsonObject rgb{{"effect",8},{"interval",500},{"brightness",80},{"colorCount",10},{"color",QJsonArray{0,255,72}}};
@@ -30,7 +32,7 @@ public:
     QJsonObject handle(const QString &path,bool post,const QJsonObject &body,int &status){
         if(path=="/api/status")return {{"connected",connected},{"stale",false},{"demo",false},{"session","test"},{"device","fixture"},{"transport","usb"},{"connectionGeneration",generation},{"rpm",1600},{"temps",QJsonObject{{"cpu",45},{"gpu",36}}}};
         if(path=="/api/screensaver")return {{"running",running},{"draftId",""},{"canRestore",false},{"progress",running?-1:0},{"phase",running?"备份原图":""}};
-        if(path=="/api/settings")return {{"autostart",false}};
+        if(path=="/api/settings")return {{"autostart",autostart}};
         if(path=="/api/system-info")return {{"enabled",false},{"values",QJsonObject{}}};
         if(path=="/api/query"){
             const QString kind=body.value("kind").toString();if(kind=="cooling")return {{"config",cooling}};
@@ -41,6 +43,8 @@ public:
             if(kind=="device"){if(failDevice){status=409;return {{"error","read failed"}};}return {{"options",QJsonObject{{"smartStartStop",true},{"powerOnStart",false}}}};}
         }
         if(post)writes.append({path,body});
+        if(path=="/api/autostart"){autostart=body.value("enabled").toBool();return {{"autostart",autostart}};}
+        if(path=="/api/quit"){status=409;return {{"error","请等待屏保传输完成"}};}
         if(path=="/api/cooling"){cooling=body;return {{"config",body},{"active",true},{"confirmed",true}};}
         if(path=="/api/rgb"){if(body.contains("colorMode"))rgb.insert("colorCount",body.value("colorMode")=="multi"?10:1);return {{"config",rgb},{"confirmed",true}};}
         if(path=="/api/switch"){if(failSwitch){status=409;return {{"error","switch rejected"}};}if(body.value("kind")=="lcd")lcd=body.value("on").toBool();if(body.value("kind")=="rgb")rgbEnabled=body.value("on").toBool();return {{"acknowledged",true}};}
@@ -54,6 +58,19 @@ class NativeWindowTests : public QObject {
     QPushButton *named(MainWindow &w,const QString &text){for(auto b:w.findChildren<QPushButton*>())if(b->text()==text)return b;return nullptr;}
 private slots:
     void initTestCase(){QFile style(":/style.qss");QVERIFY(style.open(QIODevice::ReadOnly));qApp->setStyleSheet(QString::fromUtf8(style.readAll()));}
+    void traySharesAutostartAndRestoresWindow(){
+        Fixture api;MainWindow w(api.url());w.enableTray(true);
+        auto tray=w.findChild<QSystemTrayIcon*>("systemTray");QVERIFY(tray);QVERIFY(!tray->icon().isNull());
+        auto start=w.findChild<QAction*>("trayAutostart");auto open=w.findChild<QAction*>("trayOpen");auto quit=w.findChild<QAction*>("trayExit");
+        QTRY_VERIFY(start->isEnabled());QVERIFY(!start->isChecked());start->trigger();
+        QTRY_COMPARE(api.writes.size(),1);QCOMPARE(api.writes[0].first,"/api/autostart");QVERIFY(api.autostart);
+        QTRY_VERIFY(start->isEnabled());QVERIFY(w.findChild<QCheckBox*>("loginAutostart")->isChecked());
+        w.hide();open->trigger();QVERIFY(w.isVisible());
+        QTest::mouseClick(w.findChild<QPushButton*>("closeWindow"),Qt::LeftButton);QVERIFY(!w.isVisible());
+        if(QSystemTrayIcon::isSystemTrayAvailable()){open->trigger();QVERIFY(w.isVisible());}
+        quit->trigger();QTRY_COMPARE(api.writes.size(),2);QTRY_VERIFY(quit->isEnabled());QVERIFY(w.isVisible());
+        QVERIFY(w.findChild<QLabel*>("feedback")->text().contains("屏保"));
+    }
     void nativeIdentityAndImmediateSlots(){
         Fixture api;MainWindow w(api.url());w.show();QVERIFY(w.windowFlags().testFlag(Qt::FramelessWindowHint));QCOMPARE(w.windowTitle(),"SharkCool");QVERIFY(!w.windowIcon().isNull());
         QTRY_VERIFY_WITH_TIMEOUT(preset(w,3)->isEnabled(),5000);QTest::mouseClick(preset(w,3),Qt::LeftButton);

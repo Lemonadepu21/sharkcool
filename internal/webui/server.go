@@ -24,14 +24,18 @@ import (
 var assets embed.FS
 
 func NewHandler(c *cooler.Controller, host string, temperatures ...func() map[string]int64) (http.Handler, error) {
-	return newHandler(c, host, nil, temperatures...)
+	return newHandler(c, host, nil, nil, temperatures...)
 }
 
-func NewHandlerWithSystemInfo(c *cooler.Controller, host string, publisher *sensors.Publisher, temperatures func() map[string]int64) (http.Handler, error) {
-	return newHandler(c, host, publisher, temperatures)
+func NewHandlerWithSystemInfo(c *cooler.Controller, host string, publisher *sensors.Publisher, temperatures func() map[string]int64, shutdown ...func()) (http.Handler, error) {
+	var quit func()
+	if len(shutdown) > 0 {
+		quit = shutdown[0]
+	}
+	return newHandler(c, host, publisher, quit, temperatures)
 }
 
-func newHandler(c *cooler.Controller, host string, publisher *sensors.Publisher, temperatures ...func() map[string]int64) (http.Handler, error) {
+func newHandler(c *cooler.Controller, host string, publisher *sensors.Publisher, shutdown func(), temperatures ...func() map[string]int64) (http.Handler, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return nil, err
@@ -55,7 +59,7 @@ func newHandler(c *cooler.Controller, host string, publisher *sensors.Publisher,
 	mux.Handle("/style.css", http.FileServer(http.FS(static)))
 	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
 		temps := map[string]int64{}
-		if len(temperatures) > 0 {
+		if len(temperatures) > 0 && temperatures[0] != nil {
 			temps = temperatures[0]()
 		}
 		writeJSON(w, 200, struct {
@@ -67,6 +71,19 @@ func newHandler(c *cooler.Controller, host string, publisher *sensors.Publisher,
 	})
 	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]bool{"autostart": desktop.AutostartEnabled()})
+	})
+	mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) {
+		var body struct{}
+		if err := decode(w, r, &body); err != nil {
+			writeError(w, 400, err)
+			return
+		}
+		if shutdown == nil {
+			writeError(w, 409, fmt.Errorf("当前服务不支持退出，请更新后台驱动"))
+			return
+		}
+		writeJSON(w, 200, map[string]bool{"quitting": true})
+		shutdown()
 	})
 	mux.HandleFunc("/api/system-info", func(w http.ResponseWriter, r *http.Request) {
 		if publisher == nil {
@@ -314,7 +331,7 @@ func newHandler(c *cooler.Controller, host string, publisher *sensors.Publisher,
 			writeError(w, 403, fmt.Errorf("拒绝跨站请求"))
 			return
 		}
-		mutating := strings.HasPrefix(r.URL.Path, "/api/screensaver/") || r.URL.Path == "/api/device-options" || r.URL.Path == "/api/mode" || r.URL.Path == "/api/autostart" || r.URL.Path == "/api/speed" || r.URL.Path == "/api/switch" || r.URL.Path == "/api/query" || r.URL.Path == "/api/rgb" || r.URL.Path == "/api/cooling" || r.URL.Path == "/api/source" || r.URL.Path == "/api/lcd-layout" || r.URL.Path == "/api/system-info" && r.Method != http.MethodGet && r.Method != http.MethodHead
+		mutating := strings.HasPrefix(r.URL.Path, "/api/screensaver/") || r.URL.Path == "/api/quit" || r.URL.Path == "/api/device-options" || r.URL.Path == "/api/mode" || r.URL.Path == "/api/autostart" || r.URL.Path == "/api/speed" || r.URL.Path == "/api/switch" || r.URL.Path == "/api/query" || r.URL.Path == "/api/rgb" || r.URL.Path == "/api/cooling" || r.URL.Path == "/api/source" || r.URL.Path == "/api/lcd-layout" || r.URL.Path == "/api/system-info" && r.Method != http.MethodGet && r.Method != http.MethodHead
 		if mutating {
 			if r.Method != http.MethodPost {
 				w.Header().Set("Allow", "POST")

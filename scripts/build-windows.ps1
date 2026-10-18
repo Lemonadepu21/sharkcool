@@ -31,6 +31,19 @@ try {
     foreach ($file in @('SharkCool.exe', 'sharkcool-window.exe', 'sharkcool-bridge.exe')) {
         Copy-Item "$build/Release/$file" $package
     }
+    $sensor = Join-Path $package 'sensors'
+    & dotnet publish desktop/sensors/SharkCoolSensors.csproj -c Release -r win-x64 --self-contained true -o $sensor
+    if ($LASTEXITCODE) { throw 'CPU temperature component build failed' }
+    & "$sensor/sharkcool-sensors.exe" --self-test
+    if ($LASTEXITCODE) { throw 'CPU sensor selection self-test failed' }
+    Invoke-WebRequest 'https://raw.githubusercontent.com/LibreHardwareMonitor/LibreHardwareMonitor/v0.9.6/LibreHardwareMonitor/Resources/PawnIO_setup.exe' -OutFile "$sensor/PawnIO_setup.exe"
+    $driverHash = (Get-FileHash "$sensor/PawnIO_setup.exe" -Algorithm SHA256).Hash.ToLower()
+    if ($driverHash -ne 'a3a46226c5e2824f4cdd42be0eecbabfc672c86f7889710f5ab1e6ad385b47a0') { throw 'PawnIO installer checksum mismatch' }
+    if ((Get-AuthenticodeSignature "$sensor/PawnIO_setup.exe").Status -ne 'Valid') { throw 'PawnIO installer signature is invalid' }
+    Copy-Item packaging/windows/Install-Sensors.ps1 $sensor
+    Copy-Item packaging/windows/Install-Sensors.ps1,packaging/windows/Enable-CPU-Temperature.cmd $package
+    & python scripts/windows-sensors-smoke.py $package
+    if ($LASTEXITCODE) { throw 'CPU temperature service smoke test failed' }
     foreach ($file in @('sharkcool-window.exe', 'sharkcool-bridge.exe')) {
         & "$QtRoot/bin/windeployqt.exe" --release --no-translations --no-opengl-sw --no-system-d3d-compiler --compiler-runtime "$package/$file"
         if ($LASTEXITCODE) { throw "Deployment failed for $file" }
@@ -56,6 +69,14 @@ try {
     Copy-Item packaging/licenses/* "$package/licenses/"
     Copy-Item packaging/ASSET-NOTICE.md "$package/licenses/ASSET-NOTICE.md"
     Copy-Item packaging/windows/THIRD-PARTY.md "$package/licenses/THIRD-PARTY.md"
+    Invoke-WebRequest 'https://raw.githubusercontent.com/LibreHardwareMonitor/LibreHardwareMonitor/v0.9.6/LICENSE' -OutFile "$package/licenses/LibreHardwareMonitor-MPL-2.0.txt"
+    Invoke-WebRequest 'https://raw.githubusercontent.com/LibreHardwareMonitor/LibreHardwareMonitor/v0.9.6/THIRD-PARTY-NOTICES.txt' -OutFile "$package/licenses/LibreHardwareMonitor-NOTICES.txt"
+    Invoke-WebRequest 'https://raw.githubusercontent.com/namazso/PawnIO/master/COPYING' -OutFile "$package/licenses/PawnIO-COPYING.txt"
+    $runtimeLicense = Get-ChildItem "$env:USERPROFILE/.nuget/packages/microsoft.netcore.app.runtime.win-x64" -Filter LICENSE.TXT -Recurse | Select-Object -First 1
+    $runtimeNotices = Get-ChildItem "$env:USERPROFILE/.nuget/packages/microsoft.netcore.app.runtime.win-x64" -Filter THIRD-PARTY-NOTICES.TXT -Recurse | Select-Object -First 1
+    if (!$runtimeLicense -or !$runtimeNotices) { throw '.NET runtime redistribution notices are missing' }
+    Copy-Item $runtimeLicense.FullName "$package/licenses/dotnet-runtime-LICENSE.txt"
+    Copy-Item $runtimeNotices.FullName "$package/licenses/dotnet-runtime-NOTICES.txt"
     if (Test-Path "$QtRoot/LICENSES") { Copy-Item -Recurse "$QtRoot/LICENSES" "$package/licenses/Qt-LICENSES" }
     # A portable package must launch without the build-machine Qt directory.
     $savedPath = $env:PATH

@@ -10,15 +10,15 @@ import (
 
 // OpenWindow launches our native Qt client. Browsers are only opened by the
 // explicit --browser command-line option, never as a silent fallback.
-func OpenWindow(url string) error {
+func OpenWindow(url string, args ...string) error {
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	return openWindow(url, filepath.Dir(executable), exec.LookPath, startUI)
+	return openWindow(url, filepath.Dir(executable), exec.LookPath, startUI, args...)
 }
 
-func openWindow(url, binaryDir string, lookup func(string) (string, error), start func(string, ...string) error) error {
+func openWindow(url, binaryDir string, lookup func(string) (string, error), start func(string, ...string) error, args ...string) error {
 	path, err := lookup(filepath.Join(binaryDir, nativeWindowName()))
 	if err != nil {
 		path, err = lookup(nativeWindowName())
@@ -26,7 +26,7 @@ func openWindow(url, binaryDir string, lookup func(string) (string, error), star
 	if err != nil {
 		return fmt.Errorf("未找到原生应用 sharkcool-window，请安装完整桌面包；网页控制可显式使用 --browser")
 	}
-	return start(path, "--url", url)
+	return start(path, append([]string{"--url", url}, args...)...)
 }
 
 func startUI(name string, args ...string) error {

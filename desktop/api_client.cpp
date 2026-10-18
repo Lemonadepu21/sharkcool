@@ -56,6 +56,6 @@ void ApiClient::request(const QString &path, const QJsonObject &body, bool post,
         if (status < 200 || status >= 300 || reply->error() != QNetworkReply::NoError)
             error = data.value("error").toString(reply->errorString());
         else if (parse.error != QJsonParseError::NoError || !doc.isObject()) error = "服务返回了无效数据";
-        reply->deleteLater(); callback({data, error});
+        reply->deleteLater(); callback({data, error, status});
     });
 }
