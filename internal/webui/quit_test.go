@@ -26,6 +26,7 @@ func TestQuitRequiresAuthenticatedLocalPost(t *testing.T) {
 		{"POST", token, "https://example.com", "{}", 403},
 		{"POST", token, "", `{"unknown":true}`, 400},
 		{"POST", token, "", "{}", 200},
+		{"POST", token, "", "{}", 200},
 	} {
 		r := httptest.NewRequest(tc.method, "http://127.0.0.1:17865/api/quit", strings.NewReader(tc.body))
 		r.Header.Set("Content-Type", "application/json")
@@ -39,5 +40,14 @@ func TestQuitRequiresAuthenticatedLocalPost(t *testing.T) {
 	}
 	if quits != 1 {
 		t.Fatalf("quit called %d times", quits)
+	}
+}
+
+func TestScreenTransferCannotStartDuringShutdown(t *testing.T) {
+	m := &screenManager{quitting: true}
+	for _, restore := range []bool{false, true} {
+		if err := m.start("draft", restore); err == nil || !strings.Contains(err.Error(), "退出") {
+			t.Fatal("screen transfer was not blocked during shutdown", err)
+		}
 	}
 }

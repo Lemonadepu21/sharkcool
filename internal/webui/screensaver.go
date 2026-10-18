@@ -36,6 +36,7 @@ type screenManager struct {
 	mu           sync.Mutex
 	c            *cooler.Controller
 	state        screenJob
+	quitting     bool
 	draft        []byte
 	backup       *cooler.ScreenImage
 	backupDevice string
@@ -159,6 +160,9 @@ func saveScreenBackup(image cooler.ScreenImage, device string) error {
 func (m *screenManager) start(id string, restore bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.quitting {
+		return fmt.Errorf("应用正在退出")
+	}
 	if m.state.Running {
 		return fmt.Errorf("屏保传输正在进行")
 	}

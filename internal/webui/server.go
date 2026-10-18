@@ -82,8 +82,17 @@ func newHandler(c *cooler.Controller, host string, publisher *sensors.Publisher,
 			writeError(w, 409, fmt.Errorf("当前服务不支持退出，请更新后台驱动"))
 			return
 		}
+		screen.mu.Lock()
+		defer screen.mu.Unlock()
+		if screen.state.Running {
+			writeError(w, 409, fmt.Errorf("请等待屏保传输完成"))
+			return
+		}
+		if !screen.quitting {
+			screen.quitting = true
+			defer shutdown()
+		}
 		writeJSON(w, 200, map[string]bool{"quitting": true})
-		shutdown()
 	})
 	mux.HandleFunc("/api/system-info", func(w http.ResponseWriter, r *http.Request) {
 		if publisher == nil {

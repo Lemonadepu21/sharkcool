@@ -5,7 +5,13 @@ with tempfile.TemporaryDirectory(prefix='sharkcool-installer-') as directory:
     app=pathlib.Path(directory)/'App'
     # Do not start the real device service, change the user's autostart, or make
     # shortcuts in a CI worker's profile during this isolated installer check.
-    subprocess.run([str(setup),'/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=cputemp','/NOICONS',f'/DIR={app}'],check=True,timeout=120)
+    log=pathlib.Path(directory)/'setup.log'
+    result=subprocess.run([str(setup),'/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=cputemp','/NOICONS',f'/DIR={app}',f'/LOG={log}'],timeout=120)
+    if result.returncode:
+        if log.exists():
+            data=log.read_bytes()
+            print(data.decode('utf-16' if data.startswith(b'\xff\xfe') else 'utf-8',errors='replace'))
+        result.check_returncode()
     for name in ['SharkCool.exe','sharkcool-service.exe','sharkcool-window.exe','sharkcool-bridge.exe','vcruntime140.dll','msvcp140.dll']:
         assert (app/name).is_file(),name
     helper=pathlib.Path(os.environ['ProgramFiles'])/'SharkCoolSensors/sharkcool-sensors.exe'

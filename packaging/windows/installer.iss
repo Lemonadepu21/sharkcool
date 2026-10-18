@@ -58,7 +58,7 @@ var ResultCode: Integer;
 begin
   Result := '';
   if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-    '-NoProfile -NonInteractive -Command "$s=Get-Service SharkCoolSensors -ErrorAction SilentlyContinue; if($s){Stop-Service SharkCoolSensors -Force; $s.WaitForStatus(''Stopped'',[TimeSpan]::FromSeconds(15))}"',
+    '-NoProfile -NonInteractive -Command "$ErrorActionPreference=''Stop''; $env:PSModulePath=$PSHOME+''\Modules;''+$env:PSModulePath; $s=Get-Service SharkCoolSensors -ErrorAction SilentlyContinue; if($s){Stop-Service SharkCoolSensors -Force; $s.WaitForStatus(''Stopped'',[TimeSpan]::FromSeconds(15))}; exit 0"',
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
     Result := 'Please stop the SharkCool CPU temperature service before updating.';
 end;
