@@ -1,4 +1,4 @@
-# SharkCool Windows 预览版
+# SharkCool Windows
 
 适用于 Windows 10/11 x64。此版包含实际 Windows HID 与 BLE 后端、独立 Qt 控件窗口，未使用浏览器、WebView、Wine 或官方驱动二进制。
 
@@ -23,4 +23,4 @@ Windows 系统信息可读取 CPU 温度、CPU 使用率、内存、系统盘、
 
 官方控制软件若同时访问设备可能争抢响应，请关闭后再用本应用。默认监听仅 `127.0.0.1:17865`，不开放局域网。日志位于 `%LOCALAPPDATA%\sharkcool\service.log` 和 `window.log`；备份在用户缓存目录，未写入应用安装目录。
 
-命令行可用 `sharkcool-service.exe doctor`、`version`、`gui --transport usb`、`gui --transport ble --address AA:BB:CC:DD:EE:FF`。GUI 子系统程序在脚本中应使用 `Start-Process -Wait` 或重定向输出。全部 CLI 参数见项目 README。
+命令行可用 `sharkcool-service.exe doctor`、`version`、`gui --transport usb`、`gui --transport ble --address AA:BB:CC:DD:EE:FF`。GUI 子系统程序在脚本中应使用 `Start-Process -Wait` 或重定向输出。完整命令与参数请运行 `sharkcool-service.exe help`。
