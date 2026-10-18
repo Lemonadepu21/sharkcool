@@ -1,4 +1,4 @@
-"""Check CPU selection and real service IPC without installing a kernel driver."""
+"""Check the signed driver installer, CPU service and authenticated local IPC."""
 import json, os, pathlib, subprocess, sys, time
 
 package = pathlib.Path(sys.argv[1]).resolve()
@@ -6,7 +6,7 @@ install = package / 'Install-Sensors.ps1'
 helper = pathlib.Path(os.environ['ProgramFiles']) / 'SharkCoolSensors/sharkcool-sensors.exe'
 command = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(install)]
 try:
-    subprocess.run(command + ['-SkipDriver'], check=True, timeout=60)
+    subprocess.run(command, check=True, timeout=90)
     for attempt in range(10):
         result = subprocess.run([str(helper), '--read'], capture_output=True, text=True, timeout=6)
         if result.returncode == 0:

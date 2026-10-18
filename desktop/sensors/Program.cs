@@ -119,7 +119,7 @@ internal static class Program
                         await writer.WriteLineAsync(JsonSerializer.Serialize(new { cpu, error }).AsMemory(), stop).WaitAsync(TimeSpan.FromSeconds(2), stop);
                     }
                     catch (IOException) { } // The client may close during application shutdown.
-                    catch (TimeoutException) { }
+                    catch (System.TimeoutException) { }
                 }
             }
             catch (OperationCanceledException) when (stop.IsCancellationRequested) { }

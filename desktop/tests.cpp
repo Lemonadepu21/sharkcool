@@ -66,8 +66,8 @@ private slots:
         QTRY_COMPARE(api.writes.size(),1);QCOMPARE(api.writes[0].first,"/api/autostart");QVERIFY(api.autostart);
         QTRY_VERIFY(start->isEnabled());QVERIFY(w.findChild<QCheckBox*>("loginAutostart")->isChecked());
         w.hide();open->trigger();QVERIFY(w.isVisible());
-        QTest::mouseClick(w.findChild<QPushButton*>("closeWindow"),Qt::LeftButton);QVERIFY(!w.isVisible());
-        if(QSystemTrayIcon::isSystemTrayAvailable()){open->trigger();QVERIFY(w.isVisible());}
+        if(QSystemTrayIcon::isSystemTrayAvailable()){QTest::mouseClick(w.findChild<QPushButton*>("closeWindow"),Qt::LeftButton);QVERIFY(!w.isVisible());open->trigger();QVERIFY(w.isVisible());}
+        else{QVERIFY(w.isVisible());w.hide();}
         quit->trigger();QTRY_COMPARE(api.writes.size(),2);QTRY_VERIFY(quit->isEnabled());QVERIFY(w.isVisible());
         QVERIFY(w.findChild<QLabel*>("feedback")->text().contains("屏保"));
     }

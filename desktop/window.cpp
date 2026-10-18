@@ -122,6 +122,7 @@ void MainWindow::previewPage(int index){pages->setCurrentIndex(qBound(0,index,3)
 void MainWindow::activate(){showNormal();raise();activateWindow();}
 void MainWindow::enableTray(bool startHidden){
     if(tray)return;
+    qApp->setQuitOnLastWindowClosed(false);
     tray=new QSystemTrayIcon(windowIcon(),this);tray->setObjectName("systemTray");tray->setToolTip("SharkCool");
     auto menu=new QMenu(this);auto open=menu->addAction("打开 SharkCool");open->setObjectName("trayOpen");connect(open,&QAction::triggered,this,&MainWindow::activate);
     trayAutostart=menu->addAction("登录后自动运行");trayAutostart->setObjectName("trayAutostart");trayAutostart->setCheckable(true);trayAutostart->setEnabled(false);
@@ -133,7 +134,7 @@ void MainWindow::enableTray(bool startHidden){
 }
 void MainWindow::closeEvent(QCloseEvent *event){
     if(tray&&tray->isVisible()&&QSystemTrayIcon::isSystemTrayAvailable()){hide();event->ignore();return;}
-    QWidget::closeEvent(event);
+    QWidget::closeEvent(event);if(tray)qApp->quit();
 }
 QWidget *MainWindow::dashboard(){
     auto page=new QWidget;auto layout=new QVBoxLayout(page);layout->setContentsMargins(0,0,0,0);layout->setSpacing(18);
