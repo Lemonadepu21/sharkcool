@@ -46,10 +46,34 @@ func readSysTemps(hwRoot, thermalRoot string) map[string]int64 {
 			continue
 		}
 		inputs, _ := filepath.Glob(filepath.Join(dir, "temp*_input"))
+		priority := 0
+		var selected int64
 		for _, path := range inputs {
 			if v, ok := milliTemp(path); ok {
-				putMax(temps, key, v)
+				label, _ := os.ReadFile(strings.TrimSuffix(path, "_input") + "_label")
+				name := strings.ToLower(strings.TrimSpace(string(label)))
+				rank := 1
+				if key == "cpu" {
+					switch {
+					case name == "tdie":
+						rank = 3
+					case name == "tctl", strings.HasPrefix(name, "package id "):
+						rank = 2
+					}
+				} else if name == "edge" || name == "gpu" || name == "gpu core" {
+					rank = 2
+				} else if name != "" {
+					continue // VRAM and hotspot temperatures are not GPU core temperature.
+				}
+				if rank > priority {
+					priority, selected = rank, v
+				} else if rank == priority && v > selected {
+					selected = v
+				}
 			}
+		}
+		if priority > 0 {
+			putMax(temps, key, selected)
 		}
 	}
 	if _, ok := temps["cpu"]; !ok {

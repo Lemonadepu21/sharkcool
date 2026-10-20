@@ -1,5 +1,5 @@
 #ifndef AppVersion
-#define AppVersion "1.13.0"
+#define AppVersion "1.14.0"
 #endif
 #ifndef SourceDir
 #error SourceDir must point to the complete portable application directory
@@ -33,10 +33,9 @@ RestartApplications=no
 LicenseFile={#SourceDir}\LICENSE
 [Tasks]
 Name: desktopicon; Description: "Create a desktop shortcut"; Flags: checkedonce
-Name: cputemp; Description: "Enable CPU temperature monitoring"; Flags: checkedonce
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "sensors\*,Enable-CPU-Temperature.cmd"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#SourceDir}\sensors\*"; DestDir: "{commonpf}\SharkCoolSensors"; Flags: ignoreversion recursesubdirs createallsubdirs; Tasks: cputemp
+Source: "{#SourceDir}\sensors\*"; DestDir: "{commonpf}\SharkCoolSensors"; Flags: ignoreversion recursesubdirs createallsubdirs
 [Icons]
 Name: "{autoprograms}\SharkCool"; Filename: "{app}\SharkCool.exe"; WorkingDir: "{app}"
 Name: "{autodesktop}\SharkCool"; Filename: "{app}\SharkCool.exe"; WorkingDir: "{app}"; Tasks: desktopicon
@@ -60,15 +59,15 @@ begin
   if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
     '-NoProfile -NonInteractive -Command "$ErrorActionPreference=''Stop''; $env:PSModulePath=$PSHOME+''\Modules;''+$env:PSModulePath; $s=Get-Service SharkCoolSensors -ErrorAction SilentlyContinue; if($s){Stop-Service SharkCoolSensors -Force; $s.WaitForStatus(''Stopped'',[TimeSpan]::FromSeconds(15))}; exit 0"',
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-    Result := 'Please stop the SharkCool CPU temperature service before updating.';
+    Result := 'Please stop the SharkCool CPU/GPU temperature service before updating.';
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var ResultCode: Integer;
 begin
-  if (CurStep = ssPostInstall) and WizardIsTaskSelected('cputemp') then
+  if (CurStep = ssPostInstall) then
     if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
       ExpandConstant('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{commonpf}\SharkCoolSensors\Install-Sensors.ps1" -Source "{commonpf}\SharkCoolSensors"'),
       '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-      RaiseException('CPU temperature service installation failed. Please rerun Setup.');
+      RaiseException('CPU/GPU temperature service installation failed. Please rerun Setup.');
 end;

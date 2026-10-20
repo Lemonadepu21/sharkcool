@@ -38,3 +38,20 @@ func writeSensorFixture(t *testing.T, path, text string) {
 		t.Fatal(err)
 	}
 }
+
+func TestPreferPackageDieAndGPUCore(t *testing.T) {
+	root := t.TempDir()
+	for name, files := range map[string]map[string]string{
+		"hwmon0": {"name": "coretemp", "temp1_input": "55000", "temp1_label": "Package id 0", "temp2_input": "65000", "temp2_label": "Core 0"},
+		"hwmon1": {"name": "amdgpu", "temp1_input": "61000", "temp1_label": "edge", "temp2_input": "95000", "temp2_label": "junction", "temp3_input": "90000", "temp3_label": "mem"},
+		"hwmon2": {"name": "k10temp", "temp1_input": "85000", "temp1_label": "Tctl", "temp2_input": "60000", "temp2_label": "Tdie", "temp3_input": "90000", "temp3_label": "Tccd1"},
+	} {
+		for file, value := range files {
+			writeSensorFixture(t, filepath.Join(root, name, file), value)
+		}
+	}
+	temps := readSysTemps(root, filepath.Join(root, "absent"))
+	if temps["cpu"] != 60 || temps["gpu"] != 61 {
+		t.Fatalf("wrong sensor selected: %v", temps)
+	}
+}

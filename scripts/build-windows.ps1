@@ -33,9 +33,9 @@ try {
     }
     $sensor = Join-Path $package 'sensors'
     & dotnet publish desktop/sensors/SharkCoolSensors.csproj -c Release -r win-x64 --self-contained true -o $sensor
-    if ($LASTEXITCODE) { throw 'CPU temperature component build failed' }
+    if ($LASTEXITCODE) { throw 'CPU/GPU temperature component build failed' }
     & "$sensor/sharkcool-sensors.exe" --self-test
-    if ($LASTEXITCODE) { throw 'CPU sensor selection self-test failed' }
+    if ($LASTEXITCODE) { throw 'CPU/GPU sensor selection self-test failed' }
     Invoke-WebRequest 'https://raw.githubusercontent.com/LibreHardwareMonitor/LibreHardwareMonitor/v0.9.6/LibreHardwareMonitor/Resources/PawnIO_setup.exe' -OutFile "$sensor/PawnIO_setup.exe"
     $driverHash = (Get-FileHash "$sensor/PawnIO_setup.exe" -Algorithm SHA256).Hash.ToLower()
     if ($driverHash -ne 'a3a46226c5e2824f4cdd42be0eecbabfc672c86f7889710f5ab1e6ad385b47a0') { throw 'PawnIO installer checksum mismatch' }
@@ -43,7 +43,7 @@ try {
     Copy-Item packaging/windows/Install-Sensors.ps1 $sensor
     Copy-Item packaging/windows/Install-Sensors.ps1,packaging/windows/Enable-CPU-Temperature.cmd $package
     & python scripts/windows-sensors-smoke.py $package
-    if ($LASTEXITCODE) { throw 'CPU temperature service smoke test failed' }
+    if ($LASTEXITCODE) { throw 'CPU/GPU temperature service smoke test failed' }
     foreach ($file in @('sharkcool-window.exe', 'sharkcool-bridge.exe')) {
         & "$QtRoot/bin/windeployqt.exe" --release --no-translations --no-opengl-sw --no-system-d3d-compiler --compiler-runtime "$package/$file"
         if ($LASTEXITCODE) { throw "Deployment failed for $file" }

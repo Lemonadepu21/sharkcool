@@ -24,8 +24,8 @@
 
 | 系统 | 文件 | 说明 |
 | --- | --- | --- |
-| Windows 10 / 11 x64 | `SharkCool-1.13.0-windows-x64-setup.exe` | 推荐，安装后从桌面或开始菜单启动 |
-| Windows 10 / 11 x64 | `SharkCool-1.13.0-windows-x64.zip` | 便携版，完整解压后运行 `SharkCool.exe` |
+| Windows 10 / 11 x64 | `SharkCool-1.14.0-windows-x64-setup.exe` | 推荐，安装后从桌面或开始菜单启动 |
+| Windows 10 / 11 x64 | `SharkCool-1.14.0-windows-x64.zip` | 便携版，完整解压后运行 `SharkCool.exe` |
 | Linux x86_64 | `sharkcool-linux-amd64.tar.gz` | 原生桌面应用与命令行 |
 | Linux ARM64 | `sharkcool-linux-arm64.tar.gz` | 仅后台与命令行，桌面界面需自行编译 |
 | 源码 | `sharkcool-source.tar.gz` | 含 vendor 依赖、构建脚本与示例 |
@@ -40,9 +40,9 @@
 2. 使用 USB-IN 数据接口连接电脑，或先在系统蓝牙设置中配对 `BS BRB02 Cooler Pro`。
 3. 从桌面或开始菜单打开 SharkCool。
 
-安装包包含 Qt、C++ 和 .NET 运行库。CPU 温度组件默认勾选，会安装温度采集服务与官方签名 PawnIO 驱动，需要一次管理员授权；日常运行和登录自启使用普通权限。
+安装包自动准备 Qt、C++、.NET 运行库和 CPU/GPU 采集服务，并安装官方签名 PawnIO 驱动。安装需要一次管理员授权；完成后直接启动应用，无需单独配置采集组件或另开监控软件，日常运行和登录自启使用普通权限。
 
-便携版需完整解压。首次使用 CPU 温度时运行 `Enable-CPU-Temperature.cmd`；可用 `Install-Shortcuts.cmd` 创建快捷方式。更多说明见 [Windows 使用说明](packaging/windows/README-Windows.md)。
+便携版需完整解压，双击 `SharkCool.exe`。首次打开会自动初始化或更新温度采集组件，按系统提示授权即可；再次打开会复用已有服务，登录自启不会弹出提权提示。取消初始化后仍可控制散热器。可用 `Install-Shortcuts.cmd` 创建快捷方式。更多说明见 [Windows 使用说明](packaging/windows/README-Windows.md)。
 
 ### Linux
 
@@ -92,8 +92,8 @@ sudo udevadm trigger --subsystem-match=hidraw
 - **温控曲线仍有限制**：支持曲线槽的编辑与读回，部分固件会回退固定模式，尚不能保证持续按曲线调速。
 - **屏幕布局无法读回**：屏幕开关从设备读取，三行布局是待应用的选择，无法显示设备原有布局。
 - **屏保传输推荐 USB**：USB 上传、备份与恢复已验证；BLE 图片传输尚未完成真机验证。
-- **温度因平台而异**：Linux 使用系统传感器；Windows CPU 使用 LibreHardwareMonitor / PawnIO，GPU 温度目前仅支持带 `nvidia-smi` 的 NVIDIA 显卡。没有可用传感器时显示「—」。
-- **Windows 硬件兼容性待验证**：已通过编译、自动测试、打包后窗口启动、安装与卸载检查；尚未完成 Windows 散热器及真实 CPU 传感器的真机验证。
+- **温度因平台而异**：Linux 使用系统传感器；Windows CPU/GPU 使用 LibreHardwareMonitor / PawnIO 自动识别，支持组件可读取的 Intel / AMD CPU 和 AMD / Intel / NVIDIA GPU；NVIDIA 保留 `nvidia-smi` 后备路径。GPU 显示核心温度，不以热点或显存温度替代。没有可用传感器时显示「—」。
+- **Windows 验证范围**：首版用户反馈设备控制与 GPU 温度正常，CPU 温度无法读取。新版调整了采集与自动初始化流程；新增采集路径仍需真机确认，不保证所有硬件均提供可用传感器。
 - **双系统蓝牙**：Windows 与 Linux 的配对密钥可能不同，切换系统后可能需要重新配对。应用不会修改或同步系统配对密钥。
 
 Linux 的主机音频灯效、输入响应与进程场景目前通过命令行提供，尚未集成到桌面界面；Windows 暂不支持这些采集入口。不提供固件升级功能。
@@ -132,6 +132,8 @@ Windows 构建需要 VS 2022 C++ 工具、Go、CMake、Python、Node.js、.NET 1
 ```
 
 GitHub Actions 同时构建并测试 Linux 与 Windows。软件测试不替代设备真机验证。
+
+后续优先简化安装和配置、改善传感器识别与断线恢复、减少重复采集和后台开销，使常用功能尽量开箱即用。
 
 ## 许可与致谢
 

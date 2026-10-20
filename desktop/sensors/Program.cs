@@ -22,6 +22,15 @@ internal static class Program
         return selected.Length == 0 ? null : (int)Math.Round(selected.Max(s => s.Value!.Value), MidpointRounding.AwayFromZero);
     }
 
+    internal static int? SelectGPU(IEnumerable<(string Name, float? Value)> sensors, bool load = false)
+    {
+        var valid = sensors.Where(s => s.Value is float v && float.IsFinite(v) && v >= (load ? 0 : 1) && v <= (load ? 100 : 150)).ToArray();
+        var core = valid.Where(s => s.Name.Equals("GPU Core", StringComparison.OrdinalIgnoreCase)).ToArray();
+        // Never substitute VRAM/hotspot temperature or memory utilization for GPU core readings.
+        var selected = core.Length > 0 ? core : valid.Where(s => load ? s.Name.StartsWith("D3D 3D", StringComparison.OrdinalIgnoreCase) : s.Name.Equals("GPU", StringComparison.OrdinalIgnoreCase)).ToArray();
+        return selected.Length == 0 ? null : (int)Math.Round(selected.Max(s => s.Value!.Value), MidpointRounding.AwayFromZero);
+    }
+
     private static async Task<int> Main(string[] args)
     {
         try
@@ -33,7 +42,13 @@ internal static class Program
                     SelectCPU(new[] { ("CPU Core #1 Distance to TjMax", (float?)90) }) != null ||
                     SelectCPU(new[] { ("Core", (float?)float.NaN), ("Core", (float?)151), ("Core", (float?)null) }) != null)
                     throw new InvalidOperationException("CPU sensor selection failed");
-                Console.WriteLine("CPU sensor selection passed");
+                if (SelectGPU(new[] { ("GPU Core", (float?)61), ("GPU Hot Spot", (float?)95), ("GPU Memory", (float?)90) }) != 61 ||
+                    SelectGPU(new[] { ("GPU Memory", (float?)90) }) != null ||
+                    SelectGPU(new[] { ("GPU Core", (float?)0), ("GPU Memory Controller", (float?)99) }, true) != 0 ||
+                    SelectGPU(new[] { ("D3D 3D", (float?)42), ("D3D Copy", (float?)90) }, true) != 42 ||
+                    SelectGPU(new[] { ("GPU Core", (float?)float.NaN), ("GPU", (float?)151) }) != null)
+                    throw new InvalidOperationException("GPU sensor selection failed");
+                Console.WriteLine("CPU/GPU sensor selection passed");
                 return 0;
             }
             if (args.SequenceEqual(new[] { "--read" }))
@@ -85,8 +100,10 @@ internal static class Program
         }
         private static async Task Serve(CancellationToken stop)
         {
-            var computer = new Computer { IsCpuEnabled = true };
+            var computer = new Computer { IsCpuEnabled = true, IsGpuEnabled = true };
             bool opened = false;
+            string? cached = null;
+            long sampled = 0;
             var security = new PipeSecurity();
             security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.NetworkSid, null), PipeAccessRights.FullControl, AccessControlType.Deny));
             security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
@@ -98,26 +115,52 @@ internal static class Program
                 {
                     using var pipe = NamedPipeServerStreamAcl.Create(Pipe, PipeDirection.Out, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 1024, security);
                     await pipe.WaitForConnectionAsync(stop);
-                    int? cpu = null;
-                    string? error = null;
-                    try
+                    if (cached == null || Environment.TickCount64 - sampled >= 2000)
                     {
-                        if (!PawnIo.IsInstalled) throw new IOException("PawnIO driver is not installed");
-                        if (!opened) { computer.Open(); opened = true; }
-                        var sensors = new List<(string, float?)>();
-                        foreach (var hardware in computer.Hardware.Where(h => h.HardwareType == HardwareType.Cpu))
+                        int? cpu = null, gpu = null, gpuUsage = null;
+                        string? error = null;
+                        try
                         {
-                            hardware.Update();
-                            sensors.AddRange(hardware.Sensors.Where(s => s.SensorType == SensorType.Temperature).Select(s => (s.Name, s.Value)));
+                            if (!opened) { computer.Open(); opened = true; }
+                            var cpuSensors = new List<(string, float?)>();
+                            var gpuTemperatures = new List<int>();
+                            var gpuLoads = new List<int>();
+                            foreach (var hardware in computer.Hardware)
+                            {
+                                try
+                                {
+                                    hardware.Update();
+                                    if (hardware.HardwareType == HardwareType.Cpu)
+                                        cpuSensors.AddRange(hardware.Sensors.Where(s => s.SensorType == SensorType.Temperature).Select(s => (s.Name, s.Value)));
+                                    else if (hardware.HardwareType is HardwareType.GpuAmd or HardwareType.GpuNvidia or HardwareType.GpuIntel)
+                                    {
+                                        var temperature = SelectGPU(hardware.Sensors.Where(s => s.SensorType == SensorType.Temperature).Select(s => (s.Name, s.Value)));
+                                        var load = SelectGPU(hardware.Sensors.Where(s => s.SensorType == SensorType.Load).Select(s => (s.Name, s.Value)), true);
+                                        if (temperature.HasValue) gpuTemperatures.Add(temperature.Value);
+                                        if (load.HasValue) gpuLoads.Add(load.Value);
+                                    }
+                                }
+                                catch (Exception e) { error = e.Message; }
+                            }
+                            cpu = SelectCPU(cpuSensors);
+                            if (gpuTemperatures.Count > 0) gpu = gpuTemperatures.Max();
+                            if (gpuLoads.Count > 0) gpuUsage = gpuLoads.Max();
+                            if (cpu == null && error == null)
+                                error = PawnIo.IsInstalled ? "CPU temperature sensor is unavailable" : "PawnIO driver is not installed";
                         }
-                        cpu = SelectCPU(sensors);
-                        if (cpu == null) error = "CPU temperature sensor is unavailable";
+                        catch (Exception e)
+                        {
+                            error = e.Message;
+                            computer.Close();
+                            opened = false;
+                        }
+                        cached = JsonSerializer.Serialize(new { cpu, gpu, gpuUsage, error });
+                        sampled = Environment.TickCount64;
                     }
-                    catch (Exception e) { error = e.Message; }
                     try
                     {
                         using var writer = new StreamWriter(pipe, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
-                        await writer.WriteLineAsync(JsonSerializer.Serialize(new { cpu, error }).AsMemory(), stop).WaitAsync(TimeSpan.FromSeconds(2), stop);
+                        await writer.WriteLineAsync(cached.AsMemory(), stop).WaitAsync(TimeSpan.FromSeconds(2), stop);
                     }
                     catch (IOException) { } // The client may close during application shutdown.
                     catch (System.TimeoutException) { }

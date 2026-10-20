@@ -12,21 +12,24 @@ if (!(New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Secur
     exit $elevated.ExitCode
 }
 $existing = Get-Service $name -ErrorAction SilentlyContinue
+$binary = '"' + (Join-Path $target 'sharkcool-sensors.exe') + '"'
 if ($existing) {
-    Stop-Service $name -Force
-    $existing.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(15))
+    $service = Get-CimInstance Win32_Service -Filter "Name='$name'"
+    if ($service.PathName -ne $binary -or $service.StartName -ne 'LocalSystem') { throw 'Existing sensor service has an unexpected executable or account' }
 }
 if ($Uninstall) {
     if ($existing) {
+        Stop-Service $name -Force
+        $existing.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(15))
         & sc.exe delete $name | Out-Null
-        if ($LASTEXITCODE) { throw 'Could not remove CPU temperature service' }
+        if ($LASTEXITCODE) { throw 'Could not remove temperature service' }
     }
     if (Test-Path $target) { Remove-Item -Recurse -Force $target }
     # PawnIO may also be used by other monitoring applications.
     return
 }
 $Source = (Resolve-Path $Source).Path
-if (!(Test-Path (Join-Path $Source 'sharkcool-sensors.exe'))) { throw 'CPU temperature component is missing' }
+if (!(Test-Path (Join-Path $Source 'sharkcool-sensors.exe'))) { throw 'CPU/GPU temperature component is missing' }
 $driver = Join-Path $Source 'PawnIO_setup.exe'
 if (!(Test-Path $driver)) { throw 'PawnIO installer is missing' }
 if ((Get-FileHash $driver -Algorithm SHA256).Hash.ToLower() -ne 'a3a46226c5e2824f4cdd42be0eecbabfc672c86f7889710f5ab1e6ad385b47a0') { throw 'PawnIO installer checksum is invalid' }
@@ -44,21 +47,22 @@ if (!$driverReady) {
     $install = Start-Process $driver -ArgumentList '-install','-silent' -Wait -PassThru
     if ($install.ExitCode -ne 0) { throw "PawnIO installation failed: $($install.ExitCode)" }
 }
+if ($existing) {
+    Stop-Service $name -Force
+    $existing.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(15))
+}
 # The privileged executable always lives under protected Program Files.
 if ($Source -ne $target) {
     New-Item -ItemType Directory -Force $target | Out-Null
     Copy-Item (Join-Path $Source '*') $target -Force -Recurse
 }
-$binary = '"' + (Join-Path $target 'sharkcool-sensors.exe') + '"'
 if ($existing) {
-    $service = Get-CimInstance Win32_Service -Filter "Name='$name'"
-    if ($service.PathName -ne $binary -or $service.StartName -ne 'LocalSystem') { throw 'Existing sensor service has an unexpected executable or account' }
     Set-Service $name -StartupType Automatic
 } else {
-    New-Service -Name $name -BinaryPathName $binary -StartupType Automatic -DisplayName 'SharkCool CPU Temperature' | Out-Null
+    New-Service -Name $name -BinaryPathName $binary -StartupType Automatic -DisplayName 'SharkCool Hardware Sensors' | Out-Null
 }
 & sc.exe failure $name reset= 86400 actions= restart/5000/restart/15000/restart/60000 | Out-Null
-if ($LASTEXITCODE) { throw 'Could not configure CPU temperature service recovery' }
+if ($LASTEXITCODE) { throw 'Could not configure CPU/GPU temperature service recovery' }
 Start-Service $name
 (Get-Service $name).WaitForStatus('Running', [TimeSpan]::FromSeconds(15))
-Write-Host 'SharkCool CPU temperature service is ready.'
+Write-Host 'SharkCool CPU/GPU temperature service is ready.'
