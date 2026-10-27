@@ -94,7 +94,6 @@ sudo udevadm trigger --subsystem-match=hidraw
 - **屏幕布局无法读回**：屏幕开关从设备读取，三行布局是待应用的选择，无法显示设备原有布局。
 - **屏保传输推荐 USB**：USB 上传、备份与恢复已验证；BLE 图片传输尚未完成真机验证。
 - **温度因平台而异**：Linux 使用系统传感器；Windows CPU/GPU 使用 LibreHardwareMonitor / PawnIO 自动识别，支持组件可读取的 Intel / AMD CPU 和 AMD / Intel / NVIDIA GPU；NVIDIA 保留 `nvidia-smi` 后备路径。GPU 显示核心温度，不以热点或显存温度替代。没有可用传感器时显示「—」。
-- **Windows 验证范围**：Windows 1.13.2 已在真机读取 CPU 温度，验证 USB 切档与实体屏显。1.14.0 合并这些修复并改进采集与自动初始化；新增采集路径仍需真机确认，不保证所有硬件均提供可用传感器。
 - **双系统蓝牙**：Windows 与 Linux 的配对密钥可能不同，切换系统后可能需要重新配对。应用不会修改或同步系统配对密钥。
 
 Linux 的主机音频灯效、输入响应与进程场景目前通过命令行提供，尚未集成到桌面界面；Windows 暂不支持这些采集入口。不提供固件升级功能。
@@ -132,9 +131,7 @@ Windows 构建需要 VS 2022 C++ 工具、Go、CMake、Python、Node.js、.NET 1
 ./scripts/build-windows.ps1 -QtRoot C:/Qt/6.8.3/msvc2022_64
 ```
 
-GitHub Actions 同时构建并测试 Linux 与 Windows。软件测试不替代设备真机验证。
-
-后续优先简化安装和配置、改善传感器识别与断线恢复、减少重复采集和后台开销，使常用功能尽量开箱即用。
+GitHub Actions 自动构建并测试 Linux 与 Windows。
 
 ## 许可与致谢
 
