@@ -114,6 +114,8 @@ MainWindow::MainWindow(const QUrl &base,QWidget *parent):QWidget(parent),api(bas
     nav->addStretch();transport=label("等待连接","muted");nav->addWidget(transport);nav->addWidget(label("SharkCool 1.14.0","version"));body->addWidget(sidebar);
     auto main=new QVBoxLayout;main->setContentsMargins(30,22,30,22);main->setSpacing(18);body->addLayout(main,1);
     auto top=new QHBoxLayout;auto headings=new QVBoxLayout;headings->setSpacing(4);pageHeading=label("设备概览","pageTitle");headings->addWidget(pageHeading);headings->addWidget(label("BLACK SHARK · 风神 Pro","eyebrow"));top->addLayout(headings);top->addStretch();badge=label("正在连接","connectionBadge");top->addWidget(badge,0,Qt::AlignVCenter);main->addLayout(top);
+    refreshDevice=button("刷新设备","secondary");refreshDevice->setObjectName("refreshDevice");refreshDevice->setToolTip("重新读取设备设置；使用机身按键更改设置后可点击刷新");top->addWidget(refreshDevice);
+    connect(refreshDevice,&QPushButton::clicked,this,[this]{coolingLoaded=rgbLoaded=deviceLoaded=lcdLoaded=rgbSwitchLoaded=presetsLoaded=false;revision++;nextSync=0;updateEnabled();syncDevice();});
     pages->addWidget(scrollPage(dashboard()));pages->addWidget(scrollPage(lighting()));pages->addWidget(scrollPage(screen()));pages->addWidget(scrollPage(settings()));main->addWidget(pages,1);
     feedback=label("","feedback");feedback->setWordWrap(true);feedback->hide();main->addWidget(feedback);
     connect(&pollTimer,&QTimer::timeout,this,[this]{poll();});pollTimer.start(1000);updateEnabled();setMouseTracking(true);installEventFilter(this);for(auto child:findChildren<QWidget*>()){child->setMouseTracking(true);child->installEventFilter(this);}QTimer::singleShot(0,this,[this]{poll();});
@@ -168,6 +170,7 @@ QWidget *MainWindow::lighting(){
 }
 QWidget *MainWindow::screen(){
     auto page=new QWidget;auto layout=new QVBoxLayout(page);layout->setContentsMargins(0,0,0,0);layout->setSpacing(18);
+    layout->addWidget(label("图片上传完成后，约 10 秒不操作设备会自动进入屏保。","subtle"));
     QVBoxLayout *lcd;auto panel=card(&lcd);auto state=new QWidget;auto switches=new QHBoxLayout(state);switches->setContentsMargins(0,0,0,0);lcdOn=button("开启","secondary");lcdOff=button("关闭","secondary");for(auto b:{lcdOn,lcdOff}){b->setCheckable(true);switches->addWidget(b);connect(b,&QPushButton::clicked,this,[this,b]{const bool on=b==lcdOn;renderOutputs();setOutput("lcd",on);});}title(lcd,"屏幕布局",state);
     auto fields=new QGridLayout;fields->setSpacing(12);for(int i=0;i<3;i++){rows[i]=combo(qPrintable(QString("lcdRow%1").arg(i)));rows[i]->addItem("选择显示内容","");for(int j=0;j<metricIDs.size();j++)rows[i]->addItem(metricNames[j],metricIDs[j]);field(fields,0,i,QString("第%1行").arg(i+1),rows[i]);editors<<rows[i];connect(rows[i],qOverload<int>(&QComboBox::currentIndexChanged),this,[this]{updateEnabled();});}lcd->addLayout(fields);auto layoutActions=new QHBoxLayout;layoutState=label("当前布局无法从设备读取","subtle");layoutActions->addWidget(layoutState);layoutActions->addStretch();applyLayout=button("应用布局","primary");layoutActions->addWidget(applyLayout);lcd->addLayout(layoutActions);connect(applyLayout,&QPushButton::clicked,this,[this]{QJsonArray selected;QSet<QString> unique;for(auto row:rows){selected.append(row->currentData().toString());unique.insert(row->currentData().toString());}if(unique.size()!=3){message("请选择三个不同指标",true);return;}mutation("/api/lcd-layout",{{"rows",selected}},[this](QJsonObject){layoutState->setText("已发送布局，请核对屏幕显示");});});layout->addWidget(panel);
     QVBoxLayout *image;auto screenCard=card(&image);title(image,"屏保",label("428 × 142","subtle"));preview=label("选择一张图片","imagePreview");preview->setAlignment(Qt::AlignCenter);preview->setMinimumHeight(190);image->addWidget(preview);auto actions=new QHBoxLayout;chooseImage=button("选择图片","secondary");restoreImage=button("恢复原图","secondary");applyImage=button("应用屏保","primary");actions->addWidget(chooseImage);actions->addWidget(restoreImage);actions->addStretch();actions->addWidget(applyImage);image->addLayout(actions);progress=new QProgressBar;progress->setObjectName("screenProgress");progress->setTextVisible(false);progress->setRange(0,100);progress->hide();image->addWidget(progress);screenState=label("","subtle");screenState->setWordWrap(true);image->addWidget(screenState);connect(chooseImage,&QPushButton::clicked,this,[this]{prepareImage();});connect(applyImage,&QPushButton::clicked,this,[this]{mutation("/api/screensaver/apply",{{"draftId",draftID}},[this](QJsonObject s){screenBusy=s.value("running").toBool();updateEnabled();});});connect(restoreImage,&QPushButton::clicked,this,[this]{mutation("/api/screensaver/restore",{},[this](QJsonObject s){screenBusy=s.value("running").toBool();updateEnabled();});});layout->addWidget(screenCard);layout->addStretch();return page;
@@ -204,7 +207,9 @@ void MainWindow::syncKind(int index,QString key,int epoch){
     if(key!=connectionKey||epoch!=revision||!connected||busy||screenBusy){syncing=false;return;}
     const QStringList kinds={"cooling","rgb","device","lcd","rgb-switch"};
     if(index>=kinds.size()){if(!presetsLoaded)loadPresets(0,key,format->currentIndex()==1,epoch);else{syncing=false;updateEnabled();}return;}
-    const QString kind=kinds[index];if((kind=="rgb"&&rgbLoaded)||(kind=="device"&&deviceLoaded)){syncKind(index+1,key,epoch);return;}
+    // BRB02 enters its screensaver after ten idle seconds. Re-querying loaded
+    // settings every five seconds can keep it on the gear display indefinitely.
+    const QString kind=kinds[index];if((kind=="cooling"&&coolingLoaded)||(kind=="rgb"&&rgbLoaded)||(kind=="device"&&deviceLoaded)||(kind=="lcd"&&lcdLoaded)||(kind=="rgb-switch"&&rgbSwitchLoaded)){syncKind(index+1,key,epoch);return;}
     api.post("/api/query",{{"kind",kind=="lcd"?"lcd-switch":kind}},[this,index,key,epoch,kind](ApiResult r){
         if(key!=connectionKey||epoch!=revision||busy||screenBusy){syncing=false;return;}
         if(r.ok()&&((kind!="lcd"&&kind!="rgb-switch")||r.data.value("enabled").isBool()))applyReadback(kind,r.data);else if(kind=="lcd"||kind=="rgb-switch"){if(kind=="lcd")lcdLoaded=false;else rgbSwitchLoaded=false;renderOutputs();}else if(kind=="cooling")current->setText("当前配置未读取");
@@ -243,6 +248,7 @@ void MainWindow::lightingFields(){if(!colorButton||!speedField||!applyRGB)return
 void MainWindow::updateEnabled(){
     if(!applyCooling||!applyRGB||!applyLayout||!saveDevice)return;
     const bool ready=!busy&&!screenBusy,hardware=ready&&connected&&!demo;
+    refreshDevice->setEnabled(hardware&&!syncing);
     for(auto editor:editors)editor->setEnabled(ready&&connected);
     for(int i=0;i<4;i++)slotButtons[i]->setEnabled(ready&&connected&&(demo||presetsLoaded&&!presets[i].isEmpty()));
     applyCooling->setEnabled(ready&&connected&&(demo?format->currentIndex()==0:coolingLoaded&&(format->currentIndex()==1||presetsLoaded)));readPreset->setEnabled(hardware);

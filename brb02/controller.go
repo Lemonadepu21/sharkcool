@@ -380,6 +380,10 @@ func (c *Controller) exchangeReadLocked(ctx context.Context, report []byte) (Fra
 	c.mu.Lock()
 	generation := c.lost
 	c.mu.Unlock()
+	return c.exchangeReadOnLinkLocked(ctx, report, generation)
+}
+
+func (c *Controller) exchangeReadOnLinkLocked(ctx context.Context, report []byte, generation chan struct{}) (Frame, error) {
 	var frame Frame
 	var err error
 	for attempt := 0; attempt < 2; attempt++ {

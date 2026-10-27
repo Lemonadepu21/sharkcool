@@ -564,12 +564,18 @@ func gui(ctx context.Context, out io.Writer, options cooler.Options, demo bool, 
 	}
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
-		client := http.Client{Timeout: time.Second}
+		client := http.Client{Timeout: time.Second, Transport: &http.Transport{Proxy: nil}}
 		res, getErr := client.Get("http://" + address + "/api/status")
 		if getErr == nil {
 			defer res.Body.Close()
-			var s cooler.Status
+			var s struct {
+				cooler.Status
+				Version string `json:"version"`
+			}
 			if res.StatusCode == 200 && res.Header.Get("X-SharkCool-App") == "sharkcool-linux" && json.NewDecoder(res.Body).Decode(&s) == nil && s.Demo == demo && options.Device == "" && options.Address == "" && options.Transport == "auto" {
+				if s.Version != buildinfo.Version {
+					return fmt.Errorf("后台版本 %q 与当前版本 %q 不一致；请先完全退出旧版 SharkCool（Windows 可运行旧版目录的 Stop-SharkCool.cmd），再启动当前版本", s.Version, buildinfo.Version)
+				}
 				fmt.Fprintln(out, "SharkCool 已运行：http://"+address)
 				if !noBrowser {
 					return openUI("http://" + address)

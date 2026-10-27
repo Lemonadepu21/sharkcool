@@ -28,5 +28,6 @@ cp -R brb02 cmd internal examples vendor packaging scripts desktop "$task_source
 rm -rf "$task_source/scripts/__pycache__" "$task_source/desktop/sensors/bin" "$task_source/desktop/sensors/obj"
 cp go.mod go.sum Makefile README.md PROTOCOL.md LICENSE .gitignore "$task_source/"
 if [ -d .github ]; then cp -R .github "$task_source/"; fi
+if [ -d docs ]; then cp -R docs "$task_source/"; fi
 tar -C "$task_stage" -czf dist/sharkcool-source.tar.gz sharkcool-source
 (cd dist && sha256sum sharkcool-linux-amd64.tar.gz sharkcool-linux-arm64.tar.gz sharkcool-source.tar.gz) > dist/SHA256SUMS
