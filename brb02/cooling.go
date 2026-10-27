@@ -159,11 +159,27 @@ func (c *Controller) SetCooling(ctx context.Context, config CoolingConfig) (Cool
 	generation := c.lost
 	c.mu.Unlock()
 	expected, _ := config.payload()
-	if err := c.verifyLocked(ctx, report, query, expected); err != nil {
+	// The official send queue waits for command completion before issuing the
+	// next request. Sending C26 immediately can overtake C24 processing; matching
+	// stored bytes are also insufficient when C24 itself was refused.
+	ackCtx, stopACK := context.WithTimeout(ctx, time.Second)
+	ack, err := c.exchangeCommandOnLinkLocked(ackCtx, report, 0x24, generation)
+	stopACK()
+	if err != nil {
+		return CoolingResult{Config: config}, fmt.Errorf("切档命令未完成: %w", err)
+	}
+	if ack.Long || len(ack.Payload) != 1 || ack.Payload[0] != 0 {
+		return CoolingResult{Config: config}, fmt.Errorf("设备未接受切档命令: %x", ack.Payload)
+	}
+	saved, err := c.exchangeReadOnLinkLocked(ctx, query, generation)
+	if err != nil {
 		return CoolingResult{Config: config}, err
 	}
+	if !bytes.Equal(saved.Payload, expected) {
+		return CoolingResult{Config: config}, fmt.Errorf("散热配置槽读回不匹配: %x", saved.Payload)
+	}
 	currentReport, _ := QueryReport("cooling")
-	f, err := c.exchangeReadLocked(ctx, currentReport)
+	f, err := c.exchangeReadOnLinkLocked(ctx, currentReport, generation)
 	result := CoolingResult{Config: config, Confirmed: true}
 	if err != nil {
 		result.Message = "配置槽已读回，但当前生效配置查询失败"
@@ -183,7 +199,7 @@ func (c *Controller) SetCooling(ctx context.Context, config CoolingConfig) (Cool
 			return result, fmt.Errorf("曲线生效观察期间设备断开")
 		case <-timer.C:
 		}
-		f, err = c.exchangeReadLocked(ctx, currentReport)
+		f, err = c.exchangeReadOnLinkLocked(ctx, currentReport, generation)
 		if err != nil {
 			result.Message = "配置槽已读回，但延迟生效配置查询失败"
 			return result, err

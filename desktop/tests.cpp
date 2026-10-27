@@ -16,7 +16,7 @@ class Fixture : public QTcpServer {
 public:
     QString token="aabbcc";
     bool connected=true,lcd=true,rgbEnabled=true,failSwitch=false,missingRGBState=false,running=false,failDevice=false,autostart=false;
-    int generation=1,rootReads=0;
+    int generation=1,rootReads=0,queries=0;
     QJsonObject cooling{{"source",1},{"slot",1},{"rpm",1500}};
     QJsonObject rgb{{"effect",8},{"interval",500},{"brightness",80},{"colorCount",10},{"color",QJsonArray{0,255,72}}};
     QVector<QPair<QString,QJsonObject>> writes;
@@ -35,6 +35,7 @@ public:
         if(path=="/api/settings")return {{"autostart",autostart}};
         if(path=="/api/system-info")return {{"enabled",false},{"values",QJsonObject{}}};
         if(path=="/api/query"){
+            queries++;
             const QString kind=body.value("kind").toString();if(kind=="cooling")return {{"config",cooling}};
             if(kind=="cooling-preset"){int n=body.value("slot").toInt();const int speeds[]={1500,2134,2912,3534};return {{"config",QJsonObject{{"source",0},{"slot",n},{"rpm",speeds[n-1]}}}};}
             if(kind=="rgb")return {{"config",rgb}};
@@ -58,6 +59,13 @@ class NativeWindowTests : public QObject {
     QPushButton *named(MainWindow &w,const QString &text){for(auto b:w.findChildren<QPushButton*>())if(b->text()==text)return b;return nullptr;}
 private slots:
     void initTestCase(){QFile style(":/style.qss");QVERIFY(style.open(QIODevice::ReadOnly));qApp->setStyleSheet(QString::fromUtf8(style.readAll()));}
+    void idlePollingDoesNotKeepWakingCooler(){
+        Fixture api;MainWindow w(api.url());w.show();
+        QTRY_VERIFY(preset(w,1)->isEnabled());
+        const int queries=api.queries;
+        QTest::qWait(11000);
+        QCOMPARE(api.queries,queries);
+    }
     void traySharesAutostartAndRestoresWindow(){
         Fixture api;MainWindow w(api.url());w.enableTray(true);
         auto tray=w.findChild<QSystemTrayIcon*>("systemTray");QVERIFY(tray);QVERIFY(!tray->icon().isNull());
@@ -95,8 +103,8 @@ private slots:
     void paletteUsesExplicitColorMode(){
         Fixture api;MainWindow w(api.url());w.show();QTest::mouseClick(named(w,"灯效"),Qt::LeftButton);auto mode=w.findChild<QComboBox*>("colorMode");QTRY_VERIFY(mode->isEnabled());QCOMPARE(mode->currentIndex(),0);mode->setCurrentIndex(1);QTest::mouseClick(named(w,"应用灯效"),Qt::LeftButton);QTRY_COMPARE(api.writes.size(),1);QCOMPARE(api.writes[0].second,QJsonObject({{"colorMode","single"}}));QTRY_VERIFY(mode->isEnabled());mode->setCurrentIndex(0);QTest::mouseClick(named(w,"应用灯效"),Qt::LeftButton);QTRY_COMPARE(api.writes.size(),2);QCOMPARE(api.writes[1].second,QJsonObject({{"colorMode","multi"}}));
     }
-    void liveRefreshPreservesManualDraftAndTracksDevice(){
-        Fixture api;MainWindow w(api.url());w.show();QTRY_VERIFY(preset(w,1)->isEnabled());auto rpm=w.findChild<QSpinBox*>("targetRPM");rpm->setValue(2100);api.cooling={{"source",0},{"slot",4},{"rpm",3534}};api.lcd=false;QTRY_VERIFY_WITH_TIMEOUT(preset(w,4)->isChecked(),8000);QCOMPARE(rpm->value(),2100);QTRY_VERIFY(named(w,"关闭")->isChecked());QCOMPARE(api.writes.size(),0);
+    void manualRefreshPreservesManualDraftAndTracksDevice(){
+        Fixture api;MainWindow w(api.url());w.show();QTRY_VERIFY(preset(w,1)->isEnabled());auto rpm=w.findChild<QSpinBox*>("targetRPM");rpm->setValue(2100);api.cooling={{"source",0},{"slot",4},{"rpm",3534}};api.lcd=false;QTRY_VERIFY(named(w,"刷新设备")->isEnabled());QTest::mouseClick(named(w,"刷新设备"),Qt::LeftButton);QTRY_VERIFY(preset(w,4)->isChecked());QCOMPARE(rpm->value(),2100);QTRY_VERIFY(named(w,"关闭")->isChecked());QCOMPARE(api.writes.size(),0);
     }
     void reconnectReloadsWithoutReplayingActions(){
         Fixture api;MainWindow w(api.url());w.show();QTRY_VERIFY(preset(w,1)->isEnabled());api.connected=false;QTRY_VERIFY(!preset(w,1)->isEnabled());api.connected=true;api.generation++;api.rgb.insert("colorCount",1);QTRY_VERIFY(preset(w,1)->isEnabled());QCOMPARE(w.findChild<QComboBox*>("colorMode")->currentIndex(),1);QCOMPARE(api.writes.size(),0);

@@ -53,6 +53,67 @@ type coolingTransport struct {
 	transient    bool
 	currentReads int
 	dropCurrent  bool
+	presetReads  int
+	dropPreset   bool
+}
+
+// Stores matching bytes even when the command has not been accepted, so a
+// readback alone cannot substitute for the firmware's command completion.
+type coolingACKTransport struct {
+	coolingTransport
+	ackPayload []byte
+	missingACK bool
+}
+
+func (d *coolingACKTransport) Write(report []byte) (int, error) {
+	f, _ := ParseReport(report)
+	if f.Command != 0x24 {
+		return d.coolingTransport.Write(report)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.writes = append(d.writes, bytes.Clone(report))
+	d.preset = bytes.Clone(f.Payload)
+	d.current = bytes.Clone(f.Payload)
+	if !d.missingACK {
+		ack, _ := BuildPacket(0x24, d.ackPayload)
+		d.reads <- ack
+	}
+	return len(report), nil
+}
+
+func TestCoolingWaitsForAcceptedCommandBeforeReadback(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		ack     []byte
+		missing bool
+	}{
+		{"refused", []byte{1}, false},
+		{"empty", nil, false},
+		{"extra-bytes", []byte{0, 0}, false},
+		{"missing", nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &coolingACKTransport{coolingTransport: coolingTransport{fakeTransport: fakeTransport{reads: make(chan []byte, 8)}}, ackPayload: tc.ack, missingACK: tc.missing}
+			c := NewWithConnector(func(context.Context) (Transport, string, error) { return d, "test", nil }, false)
+			ctx, cancel := context.WithCancel(context.Background())
+			done := make(chan struct{})
+			go func() { c.Run(ctx); close(done) }()
+			defer func() { cancel(); <-done }()
+			waitStatus(t, c, func(s Status) bool { return s.Connected })
+			commandCtx, stop := context.WithTimeout(ctx, 50*time.Millisecond)
+			defer stop()
+			result, err := c.SetCooling(commandCtx, CoolingConfig{Slot: 3, RPM: 2974})
+			if err == nil || result.Confirmed || result.Active {
+				t.Fatalf("unaccepted command reported as applied: %+v %v", result, err)
+			}
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			if len(d.writes) != 1 {
+				t.Fatalf("sent %d commands before a successful C24 ACK", len(d.writes))
+			}
+		})
+	}
 }
 
 func (d *coolingTransport) Write(report []byte) (int, error) {
@@ -72,6 +133,10 @@ func (d *coolingTransport) Write(report []byte) (int, error) {
 		payload = []byte{0}
 	case 0x26:
 		payload = d.preset
+		d.presetReads++
+		if d.dropPreset && d.presetReads == 1 {
+			return len(report), nil
+		}
 	case 0x25:
 		payload = d.current
 		if d.transient && d.currentReads == 0 {
@@ -197,5 +262,32 @@ func TestCoolingLostReadRetriesWithoutRewritingConfiguration(t *testing.T) {
 	}
 	if writes != 1 || d.currentReads != 2 {
 		t.Fatalf("writes=%d reads=%d", writes, d.currentReads)
+	}
+}
+
+func TestCoolingLostPresetReadRetriesWithoutRewritingConfiguration(t *testing.T) {
+	d := &coolingTransport{fakeTransport: fakeTransport{reads: make(chan []byte, 8)}, current: []byte{0, 0, 1, 0xb0, 4}, apply: true, dropPreset: true}
+	c := NewWithConnector(func(context.Context) (Transport, string, error) { return d, "test", nil }, false)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { c.Run(ctx); close(done) }()
+	defer func() { cancel(); <-done }()
+	waitStatus(t, c, func(s Status) bool { return s.Connected })
+	commandCtx, stop := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer stop()
+	result, err := c.SetCooling(commandCtx, CoolingConfig{Slot: 3, RPM: 2974})
+	if err != nil || !result.Confirmed || !result.Active {
+		t.Fatalf("lost preset read wasn't recovered: %+v %v", result, err)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	writes := 0
+	for _, report := range d.writes {
+		if report[3] == 0x24 {
+			writes++
+		}
+	}
+	if writes != 1 || d.presetReads != 2 {
+		t.Fatalf("writes=%d preset reads=%d", writes, d.presetReads)
 	}
 }

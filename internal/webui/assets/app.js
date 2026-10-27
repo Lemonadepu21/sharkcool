@@ -19,6 +19,7 @@ async function api(path,body,retried=false) {
  if(!response.ok)throw new Error(data.error||'请求失败');return data;
 }
 function buttons() {
+ $('refresh-device').disabled=busy||screenBusy||syncing||!connected||demo;
  const locked=busy||screenBusy;
  editorFields.forEach(id=>{$(id).disabled=locked;});
  document.querySelectorAll('[data-slot]').forEach(b=>{b.disabled=locked||!connected||(!demo&&!presetConfigs[b.dataset.slot]);});
@@ -48,7 +49,8 @@ async function syncDevice(key) {
  try {
   for(const kind of ['cooling','rgb','device','lcd']) {
    if(key!==connectionKey||!connected||busy)return;
-   if(loaded[kind]&&!['cooling','lcd'].includes(kind))continue;
+   // Leave the device idle after loading: BRB02 starts its screensaver at 10s.
+   if(loaded[kind])continue;
    try {
     const data=await api('/api/query',{kind:kind==='lcd'?'lcd-switch':kind});
     if(key!==connectionKey||!connected||busy)return;
@@ -62,6 +64,11 @@ async function syncDevice(key) {
   if(!loaded.presets&&key===connectionKey&&connected&&!busy)await syncPresets(key);
  }finally{syncing=false;buttons();}
 }
+$('refresh-device').addEventListener('click',()=>{
+ if(busy||screenBusy||syncing||!connected||demo)return;
+ loaded={cooling:false,rgb:false,device:false,lcd:false,presets:false};retryAt=0;
+ void syncDevice(connectionKey);
+});
 async function refresh() {
  try {
   const s=await api('/api/status');connected=s.connected;demo=s.demo;

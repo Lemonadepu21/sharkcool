@@ -54,6 +54,14 @@ test('connect reads all settings and temperatures, repeated polling preserves ed
  await p.nodes.get('set-lighting').emit('click');await settle();
  assert.deepEqual(p.calls.find(c=>c.path==='/api/rgb').body,{brightness:42});
 });
+test('idle status polling leaves the device quiet so its ten second screensaver can start',async()=>{
+ const p=page();await settle();
+ const count=p.calls.filter(c=>c.path==='/api/query').length;
+ for(let i=0;i<3;i++){
+  await p.run('retryAt=0;refresh()');await settle();
+ }
+ assert.equal(p.calls.filter(c=>c.path==='/api/query').length,count,'status polling keeps waking the cooler');
+});
 test('device slots apply immediately and manual target still uses apply',async()=>{
  const p=page();await settle();await p.presets[2].emit('click');await settle();assert.equal(p.nodes.get('cooling-rpm').value,2912);assert.deepEqual(p.calls.find(c=>c.path==='/api/cooling').body,{source:0,slot:3,rpm:2912});assert.equal(p.presets[2].classes.has('active'),true);
  p.nodes.get('cooling-rpm').value='2300';await p.nodes.get('cooling-rpm').emit('input');assert.equal(p.nodes.get('speed-slider').value,'2300');
@@ -123,13 +131,13 @@ test('interrupted screen job unlocks controls and reconnect re-reads configurati
  assert.equal(p.calls.filter(c=>c.path==='/api/screensaver/apply').length,1,'interrupted upload must not automatically replay');
 });
 
-test('screen switch and active slot refresh from device without overwriting edits',async()=>{
+test('manual device refresh tracks physical settings without overwriting edits',async()=>{
  const p=page();await settle();
  assert.equal(p.nodes.get('lcd-row-1').value,'');assert.equal(p.nodes.get('set-lcd-layout').disabled,true);
  assert.equal(p.run('loaded.lcd'),true);
  p.nodes.get('cooling-rpm').value='2100';await p.nodes.get('cooling-rpm').emit('input');
  p.state.cooling={source:0,slot:4,rpm:3534};p.state.lcd=false;
- await p.run('retryAt=0;refresh()');await settle();
+ await p.nodes.get('refresh-device').emit('click');await settle();
  assert.match(p.nodes.get('cooling-current').textContent,/4 档/);assert.equal(p.nodes.get('cooling-rpm').value,'2100');
  assert.equal(p.run('loaded.lcd'),true);
  assert.equal(p.presets[3].classes.has('active'),true);

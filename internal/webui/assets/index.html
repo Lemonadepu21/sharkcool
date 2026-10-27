@@ -7,7 +7,7 @@
 </head>
 <body>
 <main>
-  <header><div><p class="eyebrow">SHARKCOOL / LINUX</p><h1>黑鲨风神Pro</h1></div><span class="badge" id="connection">正在连接</span></header>
+  <header><div><p class="eyebrow">SHARKCOOL / LINUX</p><h1>黑鲨风神Pro</h1></div><span class="badge" id="connection">正在连接</span><button id="refresh-device" class="secondary" disabled>刷新设备</button></header>
   <div class="notice hidden" id="demo">演示模式 · 所有转速与控制结果均为模拟，不访问散热器。</div>
   <section class="grid" aria-label="实时监测">
     <article class="card rpm"><p class="label">风扇转速</p><div class="reading"><strong id="rpm">—</strong><span>RPM</span></div><progress id="rpmbar" max="4000" value="0" aria-label="风扇转速"></progress></article>
@@ -44,7 +44,7 @@
   <section class="card control" id="screensaver-control"><div class="section-title"><h2>屏保</h2><span class="sub">428 × 142</span></div>
     <div class="screen-preview" id="screen-preview-empty"><span>选择一张图片</span><img id="screen-preview" class="hidden" alt="屏保预览"></div>
     <div class="screen-actions"><label class="file-button">选择图片<input id="screen-file" type="file" accept="image/png,image/jpeg"></label><button id="restore-screen" class="secondary" disabled>恢复原图</button><button id="apply-screen" class="primary" disabled>应用屏保</button></div>
-    <div id="screen-transfer" class="hidden"><progress id="screen-progress" max="100" aria-label="屏保上传进度"></progress></div><p id="screen-state" class="sub" role="status" aria-live="polite"></p>
+    <div id="screen-transfer" class="hidden"><progress id="screen-progress" max="100" aria-label="屏保上传进度"></progress></div><p id="screen-state" class="sub" role="status" aria-live="polite"></p><p class="sub">图片上传完成后，等待约 10 秒且不操作设备，屏幕将自动进入屏保。</p>
   </section>
   <details class="card app-settings"><summary>设置</summary>
   <section class="control"><div class="section-title"><h2>温度与系统信息同步</h2><label class="toggle"><input id="system-info-enabled" type="checkbox" disabled><span>启用同步</span></label></div><p class="sub" id="system-info-values">正在采集本机指标…</p><p class="sub" id="system-info-status"></p></section>

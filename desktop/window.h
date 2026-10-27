@@ -45,7 +45,7 @@ private:
     QLabel *brightnessValue, *speedValue;
     QWidget *fixedEditor, *curveEditor, *advancedEditor, *speedField;
     std::array<QSpinBox*,4> curveTemps, curveRPMs;
-    QPushButton *applyCooling, *applyRGB, *colorButton, *lcdOn, *lcdOff, *applyLayout, *chooseImage, *applyImage, *restoreImage, *saveDevice, *readPreset;
+    QPushButton *applyCooling, *applyRGB, *colorButton, *lcdOn, *lcdOff, *applyLayout, *chooseImage, *applyImage, *restoreImage, *saveDevice, *readPreset, *refreshDevice;
     std::array<QComboBox*,3> rows;
     QCheckBox *overviewLCD, *overviewRGB;
     QPushButton *rgbOn, *rgbOff;
